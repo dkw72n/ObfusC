@@ -6,9 +6,9 @@ set(LT_LLVM_INSTALL_DIR "" CACHE PATH "/usr/bin/")
 
 # Add the location of LLVMConfig.cmake to CMake search paths (so that
 # find_package can locate it)
-list(APPEND CMAKE_PREFIX_PATH "${LT_LLVM_INSTALL_DIR}/lib/llvm-15/cmake")
+list(APPEND CMAKE_PREFIX_PATH "${LT_LLVM_INSTALL_DIR}/lib/llvm-19/cmake")
 
-find_package(LLVM 15 REQUIRED CONFIG)
+find_package(LLVM 19.1 REQUIRED CONFIG)
 
 # Add the LLVM include paths and my includes
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})

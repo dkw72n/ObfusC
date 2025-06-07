@@ -71,7 +71,7 @@ namespace obfusc {
                     continue;
                 }
 
-                llvm::ReplaceInstWithInst(block.getInstList(), instruction, newInstrs); //replace old instruction with new obfuscation instructions
+                llvm::ReplaceInstWithInst(&block, instruction, newInstrs); //replace old instruction with new obfuscation instructions
                 changed = true;
             }
         }

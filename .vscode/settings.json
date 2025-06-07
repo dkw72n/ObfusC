@@ -6,6 +6,11 @@
         "*.tcc": "cpp",
         "type_traits": "cpp",
         "*.def": "cpp",
-        "limits": "cpp"
+        "limits": "cpp",
+        "cstdlib": "cpp",
+        "mutex": "cpp",
+        "ostream": "cpp",
+        "stop_token": "cpp",
+        "typeinfo": "cpp"
     }
 }

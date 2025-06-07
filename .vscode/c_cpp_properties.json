@@ -5,7 +5,7 @@
             "defines": [
                 "VERSION"
             ],
-            "compilerPath": "/usr/bin/clang++-15",
+            "compilerPath": "/usr/bin/clang++-19",
             "compilerArgs": [
 
             ],
@@ -15,7 +15,7 @@
             "includePath": [
                 "${workspaceFolder}",
                 "${workspaceFolder}/source/**",
-                "/usr/include/llvm-15/**"
+                "/usr/include/llvm-19/**"
 
             ],
             "configurationProvider": "ms-vscode.cmake-tools"

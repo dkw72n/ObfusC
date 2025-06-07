@@ -1,6 +1,6 @@
 #include "BcfPass.hpp"
 #include <llvm/Transforms/Utils/Cloning.h>
-
+#include <llvm/IR/Module.h>
 //Heavily based on Obfuscator-LLVM
 //https://github.com/obfuscator-llvm/obfuscator/blob/llvm-4.0/lib/Transforms/Obfuscation/BogusControlFlow.cpp
 
@@ -41,7 +41,7 @@ namespace obfusc {
             llvm::LoadInst* opY = new llvm::LoadInst(int32Type, y, "", block);
 
             //Create compare instruction
-            llvm::ICmpInst* cmpInstr = new llvm::ICmpInst(*block, llvm::CmpInst::Predicate::ICMP_ULT, opX, opY);
+            llvm::ICmpInst* cmpInstr = new llvm::ICmpInst(block, llvm::CmpInst::Predicate::ICMP_ULT, opX, opY);
 
             //Create branches to each block based on cmp instr
             llvm::BranchInst::Create(origBlock, changedBlock, cmpInstr, block);
@@ -53,7 +53,7 @@ namespace obfusc {
             origBlock->getTerminator()->eraseFromParent(); //remove from parent block
 
             //Make cmp instruction
-            cmpInstr = new llvm::ICmpInst(*origBlock, llvm::CmpInst::Predicate::ICMP_ULT, opX, opY);
+            cmpInstr = new llvm::ICmpInst(origBlock, llvm::CmpInst::Predicate::ICMP_ULT, opX, opY);
             llvm::BranchInst::Create(endBlock, changedBlock, cmpInstr, origBlock); //Loop back from bogus block to changed block
 
             changed = true;

@@ -1,5 +1,6 @@
 #include "FuncAnnotationsParser.hpp"
 #include "FuncAttributeStore.hpp"
+#include <llvm/IR/Module.h>
 
 namespace obfusc {
     llvm::PreservedAnalyses FuncAnnotationsParser::run(llvm::Module& M, llvm::ModuleAnalysisManager&) {

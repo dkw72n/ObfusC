@@ -6,7 +6,7 @@
         {
             "label": "Run Test",
             "type": "shell",
-            "command": "/usr/bin/clang++-15",
+            "command": "/usr/bin/clang++-19",
             "options": {
                 "cwd": "${workspaceFolder}/tests"
             },
@@ -19,7 +19,9 @@
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}"
             ],
-            "problemMatcher": ["$gcc"],
+            "problemMatcher": [
+                "$gcc"
+            ],
             "group": {
                 "kind": "build"
             },
@@ -31,7 +33,7 @@
         {
             "label": "Run All Tests",
             "type": "shell",
-            "command": "/usr/bin/clang++-15",
+            "command": "/usr/bin/clang++-19",
             "options": {
                 "cwd": "${workspaceFolder}/tests"
             },
@@ -59,7 +61,7 @@
         {
             "label": "Run All Tests (No Obfuscation)",
             "type": "shell",
-            "command": "/usr/bin/clang++-15",
+            "command": "/usr/bin/clang++-19",
             "options": {
                 "cwd": "${workspaceFolder}/tests"
             },
@@ -81,6 +83,31 @@
                 "reveal": "always",
                 "panel": "dedicated"
             }
+        },
+        {
+            "type": "cmake",
+            "label": "CMake: clean",
+            "command": "clean",
+            "problemMatcher": [],
+            "detail": "CMake template clean task"
+        },
+        {
+            "type": "cmake",
+            "label": "CMake: build",
+            "command": "build",
+            "targets": [
+                "all"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "CMake template build task"
+        },
+        {
+            "type": "cmake",
+            "label": "CMake: test",
+            "command": "test",
+            "problemMatcher": [],
+            "detail": "CMake template test task"
         }
     ]
 }

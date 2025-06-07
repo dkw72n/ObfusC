@@ -1,6 +1,7 @@
 #include "ObfuscationPassManager.hpp"
 #include "IObfuscationPass.hpp"
 #include "FuncAttributeStore.hpp"
+#include <llvm/IR/Module.h>
 
 namespace obfusc {
     llvm::PreservedAnalyses ObfuscationPassManager::run(llvm::Module& mod, llvm::ModuleAnalysisManager&) {
