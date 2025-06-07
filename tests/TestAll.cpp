@@ -17,6 +17,10 @@ namespace BcfTest {
     void BcfTestAll();
 }
 
+namespace IbrTest {
+    void IbrTestAll();
+}
+
 #ifdef OBFUSC_TEST_BUILD_ALL
 
 int main(int argc, char *argv[]) {
