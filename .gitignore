@@ -47,5 +47,6 @@ isubTest
 bcfTest
 cffTest
 ibrTest
+splitTest
 TestAll
 TestAll_NoObfusC
