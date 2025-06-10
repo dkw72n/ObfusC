@@ -2,6 +2,12 @@
 #include <cstdlib>
 #include <limits>
 
+#include <random>
+
+static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
+// initialize Mersennes' twister using rd to generate the seed
+static std::mt19937 rng{rd()}; 
+
 namespace obfusc {
     MbaPass::MbaPass() {}
     MbaPass::~MbaPass() {}
@@ -9,73 +15,9 @@ namespace obfusc {
     bool MbaPass::obfuscate(llvm::Module& mod, llvm::Function& func) {
         bool changed = false;
 
-        for (auto& block : func) {
-            for (auto instruction = block.begin(); instruction != block.end(); instruction++) {
-                llvm::BinaryOperator* binOp = llvm::dyn_cast<llvm::BinaryOperator>(instruction); 
-                if (!binOp) //Is instruction a binary op
-                    continue;
-
-                llvm::IRBuilder irBuilder(binOp);
-                llvm::Type* newType = llvm::IntegerType::getInt128Ty(binOp->getType()->getContext()); //Set type to 128 bit to account for possible uint64 overflows
-
-                llvm::Value* op1 = GenStackAlignmentCode(irBuilder, newType, binOp->getOperand(0));
-                llvm::Value* op2 = GenStackAlignmentCode(irBuilder, newType, binOp->getOperand(1));
-
-                op1 = Substitute(irBuilder, newType, binOp->getType(), op1); //Generate MBA for op1
-                op2 = Substitute(irBuilder, newType, binOp->getType(), op2); //Generate MBA for op2
-
-                llvm::Instruction* newInstrs;
-                unsigned opCode = binOp->getOpcode();
-                switch (opCode) { //Gen underlying operation
-                case llvm::Instruction::Add:
-                    newInstrs = llvm::BinaryOperator::CreateAdd(op1, op2);
-                    break;
-
-                case llvm::Instruction::Sub:
-                    newInstrs = llvm::BinaryOperator::CreateSub(op1, op2);
-                    break;
-
-                case llvm::Instruction::Mul:
-                    newInstrs = llvm::BinaryOperator::CreateMul(op1, op2);
-                    break;
-
-                case llvm::Instruction::UDiv:
-                    newInstrs = llvm::BinaryOperator::CreateUDiv(op1, op2);
-                    break;
-
-                case llvm::Instruction::SDiv:
-                    newInstrs = llvm::BinaryOperator::CreateSDiv(op1, op2);
-                    break;
-
-                case llvm::Instruction::And:
-                    newInstrs = llvm::BinaryOperator::CreateAnd(op1, op2);
-                    break;
-
-                case llvm::Instruction::Or:
-                    newInstrs = llvm::BinaryOperator::CreateOr(op1, op2);
-                    break;
-
-                case llvm::Instruction::Xor:
-                    newInstrs = llvm::BinaryOperator::CreateXor(op1, op2);
-                    break;
-
-                case llvm::Instruction::LShr:
-                    newInstrs = llvm::BinaryOperator::CreateLShr(op1, op2);
-                    break;
-
-                case llvm::Instruction::Shl:
-                    newInstrs = llvm::BinaryOperator::CreateShl(op1, op2);
-                    break;
-
-                default:
-                    continue;
-                }
-
-                llvm::ReplaceInstWithInst(&block, instruction, newInstrs); //replace old instruction with new obfuscation instructions
-                changed = true;
-            }
+        for(int i = 0; i < s_RecursiveAmount; ++i){
+            changed |= single_pass(mod, func);
         }
-
         return changed;
     }
 
@@ -94,6 +36,109 @@ namespace obfusc {
         }
     }
 
+    bool MbaPass::single_pass(llvm::Module& mod, llvm::Function& func){
+        bool changed = false;
+        for (auto& block : func) {
+            uint32_t cnt = 0;
+            for (auto instruction = block.begin(); instruction != block.end(); instruction++) {
+                auto dice = rng() % 30;
+                llvm::BinaryOperator* binOp = llvm::dyn_cast<llvm::BinaryOperator>(instruction); 
+                if (!binOp) //Is instruction a binary op
+                    continue;
+
+                auto Opcode = binOp->getOpcode();
+
+                if (!binOp->getType()->isIntegerTy()){
+                    continue;
+                }
+
+                if (binOp->getOperand(0)->getType() != binOp->getOperand(1)->getType()){
+                    continue;
+                }
+
+                //llvm::outs() << Opcode << "\n";
+                //llvm::outs() << "\tt[0]:" << binOp->getOperand(0)->getType() << "\n";
+                //llvm::outs() << "\tt[1]:" << binOp->getOperand(1)->getType() << "\n";
+                if (Opcode == llvm::Instruction::Add){
+                    if (cnt == 0 || dice == 1){
+                        llvm::IRBuilder irBuilder(binOp);
+                        // a + b == (a ^ b) + 2 * (a & b)
+                        //       == (a & b) + (a | b)
+                        auto *NewValue = irBuilder.CreateAdd(
+                            irBuilder.CreateXor(binOp->getOperand(0),
+                                            binOp->getOperand(1)),
+                            irBuilder.CreateMul(
+                                llvm::ConstantInt::get(binOp->getType(), 2),
+                                irBuilder.CreateAnd(
+                                    binOp->getOperand(0),
+                                    binOp->getOperand(1)
+                                )
+                            )
+                        );
+                        llvm::ReplaceInstWithValue(instruction, NewValue);
+                        changed = true;
+                        cnt++;
+                    }
+                    else if (cnt == 0 || dice == 2){
+                        llvm::IRBuilder irBuilder(binOp);
+                        auto *NewValue = irBuilder.CreateAdd(
+                            irBuilder.CreateAnd(
+                                binOp->getOperand(0),
+                                binOp->getOperand(1)
+                            ),
+                            irBuilder.CreateOr(
+                                binOp->getOperand(0),
+                                binOp->getOperand(1)
+                            )
+                        );
+                        llvm::ReplaceInstWithValue(instruction, NewValue);
+                        changed = true;
+                        cnt++;
+                    }
+                }
+                else if (Opcode == llvm::Instruction::Xor){
+                    if (cnt == 0 || dice == 3){
+                        llvm::IRBuilder irBuilder(binOp);
+                        // a ^ b == (a | b) - (a & b)
+                        auto *NewValue = irBuilder.CreateSub(
+                            irBuilder.CreateOr(
+                                binOp->getOperand(0), 
+                                binOp->getOperand(1)),
+                            irBuilder.CreateAnd(
+                                binOp->getOperand(0),
+                                binOp->getOperand(1))
+                        );
+                        llvm::ReplaceInstWithValue(instruction, NewValue);
+                        changed = true;
+                        cnt++;
+                    }
+                }
+                else if (Opcode == llvm::Instruction::Sub){
+                    if (cnt == 0 || dice == 4){
+                        llvm::IRBuilder irBuilder(binOp);
+                        // a - b == (a ^ -b) + 2*(a & -b)
+                        auto *NewValue = irBuilder.CreateAdd(
+                            irBuilder.CreateXor(
+                                binOp->getOperand(0), 
+                                irBuilder.CreateNeg(binOp->getOperand(1))
+                            ),
+                            irBuilder.CreateMul(
+                                llvm::ConstantInt::get(binOp->getType(), 2),
+                                irBuilder.CreateAnd(
+                                    binOp->getOperand(0),
+                                    irBuilder.CreateNeg(binOp->getOperand(1))
+                                )
+                            )
+                        );
+                        llvm::ReplaceInstWithValue(instruction, NewValue);
+                        changed = true;
+                        cnt++;
+                    }
+                }
+            }
+        }
+        return changed;
+    }
     /* Gen loads and stores to convert initial value to a 128 bit value (e.g. 32 bit to 128 bit) */
     llvm::Value* MbaPass::GenStackAlignmentCode(llvm::IRBuilder<>& irBuilder, llvm::Type* newType, llvm::Value* operand) {
         llvm::Instruction* alloc = irBuilder.CreateAlloca(newType);
@@ -106,7 +151,10 @@ namespace obfusc {
     /* Recursive function to generate the various mixed arithmetic IR. Essentially creates a reversible tree of IR instructions */
     llvm::Value* MbaPass::Substitute(llvm::IRBuilder<>& irBuilder, llvm::Type* type, llvm::Type* origType, llvm::Value* operand, size_t numRecursions) {
         if (numRecursions >= s_RecursiveAmount) {
-            return operand;
+            // operand->mutateType(origType);
+            // return llvm::CastInst::Create(llvm::Instruction::BitCast, operand, origType);
+            return irBuilder.CreateTruncOrBitCast(operand, origType);
+            // return operand;
         }
 
         llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(operand);
@@ -116,6 +164,7 @@ namespace obfusc {
                 (opCode == llvm::Instruction::SDiv) || (opCode == llvm::Instruction::Xor)) 
             {
                 operand->mutateType(type);
+                //operand = llvm::CastInst::Create(llvm::Instruction::BitCast, operand, type);
             }
         }
 

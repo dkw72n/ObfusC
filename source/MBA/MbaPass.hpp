@@ -19,8 +19,9 @@ namespace obfusc {
             Max
         };
 
-        static constexpr size_t s_RecursiveAmount = 100;
+        static constexpr size_t s_RecursiveAmount = 20;
 
+        bool single_pass(llvm::Module& mod, llvm::Function& func);
         uint64_t GetSignedMax(llvm::Type* type);
         llvm::Value* GenStackAlignmentCode(llvm::IRBuilder<>& irBuilder, llvm::Type* newType, llvm::Value* operand);
         llvm::Value* Substitute(llvm::IRBuilder<>& irBuilder, llvm::Type* type, llvm::Type* origType, llvm::Value* operand, size_t numRecursions = 0);

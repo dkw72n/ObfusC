@@ -12,6 +12,7 @@ namespace obfusc {
                     if (attr.isStringAttribute()) { //If attribute is a string
                         IObfuscationPass* pass = FuncAttributeStore::GetInstance().GetAttrPass(llvm::StringRef(attr.getAsString().data())); //Check if attr is an obfuscation pass
                         if (pass) {
+                            llvm::outs() << "[-] <" << attr.getAsString() << "> running...\n";
                             changed |= pass->obfuscate(mod, func); //Call obfuscate func
                         }
                     }
