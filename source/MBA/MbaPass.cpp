@@ -41,7 +41,7 @@ namespace obfusc {
         for (auto& block : func) {
             uint32_t cnt = 0;
             for (auto instruction = block.begin(); instruction != block.end(); instruction++) {
-                auto dice = rng() % 30;
+                auto dice = rng() % 100;
                 llvm::BinaryOperator* binOp = llvm::dyn_cast<llvm::BinaryOperator>(instruction); 
                 if (!binOp) //Is instruction a binary op
                     continue;
@@ -60,7 +60,7 @@ namespace obfusc {
                 //llvm::outs() << "\tt[0]:" << binOp->getOperand(0)->getType() << "\n";
                 //llvm::outs() << "\tt[1]:" << binOp->getOperand(1)->getType() << "\n";
                 if (Opcode == llvm::Instruction::Add){
-                    if (cnt == 0 || dice == 1){
+                    if (dice < 5){
                         llvm::IRBuilder irBuilder(binOp);
                         // a + b == (a ^ b) + 2 * (a & b)
                         //       == (a & b) + (a | b)
@@ -79,7 +79,7 @@ namespace obfusc {
                         changed = true;
                         cnt++;
                     }
-                    else if (cnt == 0 || dice == 2){
+                    else if (dice < 10){
                         llvm::IRBuilder irBuilder(binOp);
                         auto *NewValue = irBuilder.CreateAdd(
                             irBuilder.CreateAnd(
@@ -97,7 +97,7 @@ namespace obfusc {
                     }
                 }
                 else if (Opcode == llvm::Instruction::Xor){
-                    if (cnt == 0 || dice == 3){
+                    if (dice < 20){
                         llvm::IRBuilder irBuilder(binOp);
                         // a ^ b == (a | b) - (a & b)
                         auto *NewValue = irBuilder.CreateSub(
@@ -114,7 +114,7 @@ namespace obfusc {
                     }
                 }
                 else if (Opcode == llvm::Instruction::Sub){
-                    if (cnt == 0 || dice == 4){
+                    if (dice < 10){
                         llvm::IRBuilder irBuilder(binOp);
                         // a - b == (a ^ -b) + 2*(a & -b)
                         auto *NewValue = irBuilder.CreateAdd(
