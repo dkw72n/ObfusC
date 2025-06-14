@@ -187,11 +187,11 @@ namespace obfusc {
             }
 
             for (llvm::Instruction* reg : tmpReg) {
-                llvm::DemoteRegToStack(*reg, false, bbEntry.getTerminator()->getIterator());
+                llvm::DemoteRegToStack(*reg, false, bbEntry.begin());
             }
 
             for (llvm::PHINode* phi : tmpPhi) {
-                llvm::DemotePHIToStack(phi, bbEntry.getTerminator()->getIterator());
+                llvm::DemotePHIToStack(phi, bbEntry.begin());
             }
 
             if (tmpReg.size() == 0 || tmpPhi.size() == 0) {
