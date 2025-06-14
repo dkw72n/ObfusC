@@ -34,6 +34,8 @@ namespace obfusc {
             llvm::BasicBlock* changedBlock = MakeBogusBlock(origBlock, func); //Get Bogus/altered version of same block
 
             //Erase from parents for each block
+            llvm::outs() << "changedBlock:" << changedBlock<< "\n";
+            llvm::outs() << "changedBlock->getTerminator():" << changedBlock->getTerminator() << "\n";
             changedBlock->getTerminator()->eraseFromParent();
             block->getTerminator()->eraseFromParent();
 
@@ -113,14 +115,15 @@ namespace obfusc {
             //Make Load instrs into Store instrs
             else if (instruction->getOpcode() == llvm::Instruction::Load) {
                 llvm::Value* op0 = instruction->getOperand(0);
-                llvm::AllocaInst* allocIns = (llvm::AllocaInst*)op0;
-                llvm::Type* opType = allocIns->getAllocatedType();
-                // llvm::outs() << opType->dump() << "\n";
-                // opType->dump();
-                auto randVal = llvm::ConstantInt::get(opType, rng()); //Get random number for storing
+                if (auto allocIns = llvm::dyn_cast<llvm::AllocaInst>(op0)){
+                    llvm::Type* opType = allocIns->getAllocatedType();
+                    llvm::outs() << (uintptr_t)opType << "\n";
+                    opType->dump();
+                    auto randVal = llvm::ConstantInt::get(opType, rng()); //Get random number for storing
 
-                llvm::StoreInst* newOp = new llvm::StoreInst(randVal, op0, true, &*instruction);
-                instruction = instruction->eraseFromParent();
+                    llvm::StoreInst* newOp = new llvm::StoreInst(randVal, op0, true, &*instruction);
+                    instruction = instruction->eraseFromParent();
+                }
             }
 
             //Make Store instrs into Load instrs
