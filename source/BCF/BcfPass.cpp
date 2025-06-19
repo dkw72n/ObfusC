@@ -34,8 +34,8 @@ namespace obfusc {
             llvm::BasicBlock* changedBlock = MakeBogusBlock(origBlock, func); //Get Bogus/altered version of same block
 
             //Erase from parents for each block
-            llvm::outs() << "changedBlock:" << changedBlock<< "\n";
-            llvm::outs() << "changedBlock->getTerminator():" << changedBlock->getTerminator() << "\n";
+            // llvm::outs() << "changedBlock:" << changedBlock<< "\n";
+            // llvm::outs() << "changedBlock->getTerminator():" << changedBlock->getTerminator() << "\n";
             changedBlock->getTerminator()->eraseFromParent();
             block->getTerminator()->eraseFromParent();
 
@@ -101,7 +101,7 @@ namespace obfusc {
             //Needed for DWARF symbols
             instruction->setDebugLoc(origInstruction->getDebugLoc());
             origInstruction++;
-            
+ 
             /* Start altering blocks!! */
 
             if (instruction->isBinaryOp()) { //Swap operators for binary instrs
@@ -111,18 +111,26 @@ namespace obfusc {
                 instruction->setOperand(0, op1);
                 instruction->setOperand(1, op0);
             }
-
+           #if 0
             //Make Load instrs into Store instrs
             else if (instruction->getOpcode() == llvm::Instruction::Load) {
                 llvm::Value* op0 = instruction->getOperand(0);
+                llvm::outs() << "*** processing " ;
+                instruction->dump();
                 if (auto allocIns = llvm::dyn_cast<llvm::AllocaInst>(op0)){
                     llvm::Type* opType = allocIns->getAllocatedType();
-                    llvm::outs() << (uintptr_t)opType << "\n";
-                    opType->dump();
-                    auto randVal = llvm::ConstantInt::get(opType, rng()); //Get random number for storing
+                    if (opType->isIntegerTy()){
+                        llvm::outs() << (uintptr_t)opType << "\n";
+                        opType->dump();
+                        auto randVal = llvm::ConstantInt::get(opType, rng()); //Get random number for storing
 
-                    llvm::StoreInst* newOp = new llvm::StoreInst(randVal, op0, true, &*instruction);
-                    instruction = instruction->eraseFromParent();
+                        llvm::StoreInst* newOp = new llvm::StoreInst(randVal, op0, true, &*instruction);
+                        instruction = instruction->eraseFromParent();
+                        llvm::outs() << "*** --> ";
+                        newOp->dump();
+                    }
+                } else {
+                    llvm::outs() << "*** --> X\n";
                 }
             }
 
@@ -134,6 +142,7 @@ namespace obfusc {
                 llvm::LoadInst* newOp = new llvm::LoadInst(op0->getType(), op1, "", &*instruction);
                 instruction = instruction->eraseFromParent();
             }
+            #endif
         }
 
         return retBlock;

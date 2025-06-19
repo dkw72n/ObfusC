@@ -17,7 +17,7 @@ namespace obfusc {
             l-=2;
         }
         for (const auto word : std::views::split(std::string_view(p, l), delim)){
-            llvm::outs() << word.data() << "\n";
+            // llvm::outs() << word.data() << "\n";
             auto pass = FuncAttributeStore::GetInstance().GetAttrPass(llvm::StringRef(word.data()));
             if (!pass){
                 return {};
