@@ -41,12 +41,16 @@ public:
 
 
     void shuffle(){
-        for(int i = 0; i < idx2func.size() - 1; i++){
-            auto x = rng() % idx2func.size() + i;
+        for(int i = 0; i < 10; ++i) idx2func.emplace_back(nullptr);
+        for(int i = 0; i < idx2func.size(); i++){
+            auto x = rng() % (idx2func.size() - i) + i;
             auto y = i;
             if (x != y){
-                std::swap(func2idx[idx2func[x]], func2idx[idx2func[y]]);
                 std::swap(idx2func[x], idx2func[y]);
+                
+            }
+            if (idx2func[i]){
+                func2idx[idx2func[i]] = i;
             }
         }
     }
@@ -87,7 +91,7 @@ static void number_callees(llvm::Function& F, CalleeMap& M){
     for(auto& BB: F){
         for(auto& I: BB){
             if (auto CI = llvm::dyn_cast<llvm::CallInst>(&I)){
-                llvm::outs() << "Found CallInst:" << CI << "\n";
+                // llvm::outs() << "Found CallInst:" << CI << "\n";
                 auto Callee = CI->getCalledFunction();
                 if (!Callee) {
                     continue;
@@ -98,11 +102,11 @@ static void number_callees(llvm::Function& F, CalleeMap& M){
                 }
 
                 M.insert(CI);
-                llvm::outs() << "  calling (" << Callee << ")" << Callee->getName() << "\n";
+                // llvm::outs() << "  calling (" << Callee << ")" << Callee->getName() << "\n";
             }
         }
     }
-    // M.shuffle();
+    M.shuffle();
 }
 
 
@@ -114,7 +118,13 @@ static llvm::GlobalVariable* make_function_list(llvm::Module& M, CalleeMap& CM){
     std::vector<llvm::Constant *> Elements;
     auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(M.getContext()));
     for (size_t i = 0; i < CM.size(); ++i){
-        llvm::Constant *CE = llvm::ConstantExpr::getBitCast(CM.getFunc(i), Int8PtrTy);
+        auto F = CM.getFunc(i);
+        llvm::Constant *CE = nullptr;
+        if (F){
+            CE = llvm::ConstantExpr::getBitCast(CM.getFunc(i), Int8PtrTy);
+        } else {
+            CE = llvm::ConstantPointerNull::get(Int8PtrTy);
+        }
         // CE = llvm::ConstantExpr::getGetElementPtr(Int8PtrTy, CE, EncKey);
         Elements.push_back(CE);
     }
@@ -160,7 +170,12 @@ llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::
 }
 
 llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N){
+    auto Int32Ty = llvm::Type::getInt32Ty(Context);
+#if 1
     if (N == 0) return MakeZero(Context, IRB, Value);
+    if (N < 0) return IRB.CreateNeg(
+        MakeN(Context, IRB, Value, -N)
+    );
     auto S = N % 2 ? MakeOne(Context, IRB, Value): MakeZero(Context, IRB, Value);
     auto X = MakeN(Context, IRB, Value, N / 2);
     auto Y = IRB.CreateAdd(X, X);
@@ -168,6 +183,9 @@ llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Val
         return IRB.CreateAdd(Y, MakeOne(Context, IRB, Value));
     } 
     return Y;
+#else
+    return llvm::ConstantInt::get(Int32Ty, N);
+#endif
 }
 
 namespace obfusc {
@@ -191,13 +209,18 @@ namespace obfusc {
                 IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
                 Int32Ty
             );
+            int32_t Shift = rng() % 2048 + 2048;
             CI->setCalledOperand(IRB.CreateBitCast(
                 IRB.CreateLoad(
                     Int8PtrTy,
                     IRB.CreateGEP(
                         Int8PtrTy,
-                        ptrs,
-                        MakeN(mod.getContext(), IRB, AOR, CM.getIdx(CI->getCalledFunction()))
+                        IRB.CreateGEP(
+                            Int8PtrTy,
+                            ptrs,
+                            llvm::ConstantInt::get(Int32Ty, Shift)
+                        ),
+                        MakeN(mod.getContext(), IRB, AOR, -Shift + CM.getIdx(CI->getCalledFunction()))
                     )
                 ),
                 CI->getFunctionType()->getPointerTo()
