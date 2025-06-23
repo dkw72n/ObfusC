@@ -25,14 +25,31 @@ public:
     void insert(llvm::CallInst* CI){
         callsites.emplace_back(CI);
         auto f = CI->getCalledFunction();
+        
         if (func2idx.find(f) != func2idx.end()){
             return;
         }
         func2idx[f] = idx2func.size();
+        
         idx2func.emplace_back(f);
         
     }
 
+    void insert(){
+
+    }
+
+
+    void shuffle(){
+        for(int i = 0; i < idx2func.size() - 1; i++){
+            auto x = rng() % idx2func.size() + i;
+            auto y = i;
+            if (x != y){
+                std::swap(func2idx[idx2func[x]], func2idx[idx2func[y]]);
+                std::swap(idx2func[x], idx2func[y]);
+            }
+        }
+    }
     llvm::Function* getFunc(size_t idx) const{
         if (idx >= 0 && idx < idx2func.size()) return idx2func[idx];
         return nullptr;
@@ -85,6 +102,7 @@ static void number_callees(llvm::Function& F, CalleeMap& M){
             }
         }
     }
+    // M.shuffle();
 }
 
 
@@ -107,6 +125,51 @@ static llvm::GlobalVariable* make_function_list(llvm::Module& M, CalleeMap& CM){
     return GV;
 }
 
+
+llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
+    auto Int32Ty = llvm::Type::getInt32Ty(Context);
+    auto One = llvm::ConstantInt::get(Int32Ty, 1);
+    auto Two = llvm::ConstantInt::get(Int32Ty, 2);
+    auto Three = llvm::ConstantInt::get(Int32Ty, 3);
+    auto X = IRB.CreateURem(Value, Three);
+    auto Y = IRB.CreateAdd(X, One);
+    auto Z = IRB.CreateShl(One, X);
+    switch (rng() % 2){
+        case 0:
+            return IRB.CreateAnd(IRB.CreateOr(IRB.CreateLShr(Y, One), Y), One);
+        case 1:
+            return IRB.CreateURem(IRB.CreateMul(Z, Z), IRB.CreateAdd(Z, One));
+    }
+    return One;
+}
+
+llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
+    auto Int32Ty = llvm::Type::getInt32Ty(Context);
+    auto Three = llvm::ConstantInt::get(Int32Ty, 3);
+    auto One = llvm::ConstantInt::get(Int32Ty, 1);
+    auto X = IRB.CreateURem(Value, Three);
+    switch (rng() % 2){
+        case 0:
+            return IRB.CreateAnd(IRB.CreateLShr(X, One), X);
+        case 1:
+            return IRB.CreateNot(IRB.CreateNeg(MakeOne(Context, IRB, Value)));
+    }
+    // return IRB.CreateLShr(IRB.CreateURem(Value, llvm::ConstantInt::get(Int32Ty, 3)), llvm::ConstantInt::get(Int32Ty, 3));
+    return IRB.CreateXor(Value, Value);
+    // return IRB.CreateSub(IRB.CreateURem(IRB.CreateMul(X,X), IRB.CreateAdd(X, One)), One);
+}
+
+llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N){
+    if (N == 0) return MakeZero(Context, IRB, Value);
+    auto S = N % 2 ? MakeOne(Context, IRB, Value): MakeZero(Context, IRB, Value);
+    auto X = MakeN(Context, IRB, Value, N / 2);
+    auto Y = IRB.CreateAdd(X, X);
+    if (N % 2){
+        return IRB.CreateAdd(Y, MakeOne(Context, IRB, Value));
+    } 
+    return Y;
+}
+
 namespace obfusc {
     IcallPass::IcallPass() {}
     IcallPass::~IcallPass() {}
@@ -121,15 +184,20 @@ namespace obfusc {
         llvm::GlobalVariable* ptrs = make_function_list(mod, CM);
         auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
         auto Int32Ty = llvm::Type::getInt32Ty(mod.getContext());
+        auto Int64Ty = llvm::Type::getInt64Ty(mod.getContext());
         for(auto CI: CM.callsites){
             llvm::IRBuilder<> IRB(CI);
+            auto AOR = IRB.CreatePtrToInt(
+                IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
+                Int32Ty
+            );
             CI->setCalledOperand(IRB.CreateBitCast(
                 IRB.CreateLoad(
                     Int8PtrTy,
                     IRB.CreateGEP(
                         Int8PtrTy,
                         ptrs,
-                        llvm::ConstantInt::get(Int32Ty, CM.getIdx(CI->getCalledFunction()))
+                        MakeN(mod.getContext(), IRB, AOR, CM.getIdx(CI->getCalledFunction()))
                     )
                 ),
                 CI->getFunctionType()->getPointerTo()

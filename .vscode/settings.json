@@ -17,6 +17,7 @@
         "tuple": "cpp",
         "utility": "cpp",
         "variant": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "text_encoding": "cpp"
     }
 }
