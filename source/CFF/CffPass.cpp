@@ -97,6 +97,11 @@ namespace obfusc {
         for (std::vector<llvm::BasicBlock*>::iterator b = origBB.begin(); b != origBB.end(); ++b) {
             llvm::BasicBlock* i = *b;
 
+            auto terminator = i->getTerminator();
+            if (auto ibr = llvm::dyn_cast<llvm::IndirectBrInst>(terminator)){
+                // skip indirect br
+                continue;
+            }
             // If it's a non-conditional jump
             if (i->getTerminator()->getNumSuccessors() == 1) {
                 // Get successor and delete terminator
@@ -132,7 +137,11 @@ namespace obfusc {
                 }
 
                 // Create a SelectInst
-                llvm::BranchInst *br = llvm::cast<llvm::BranchInst>(i->getTerminator());
+                llvm::BranchInst *br = llvm::dyn_cast<llvm::BranchInst>(i->getTerminator());
+                if (!br){
+                    llvm::outs() << "[wtf] " ; i->getTerminator()->dump();
+                    continue;
+                }
                 llvm::SelectInst *sel = llvm::SelectInst::Create(br->getCondition(), numCaseTrue, numCaseFalse, "", i->getTerminator());
 
                 // Erase terminator
