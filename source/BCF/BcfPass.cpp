@@ -11,6 +11,9 @@ static std::mt19937 rng{rd()};
 //Heavily based on Obfuscator-LLVM
 //https://github.com/obfuscator-llvm/obfuscator/blob/llvm-4.0/lib/Transforms/Obfuscation/BogusControlFlow.cpp
 
+llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
+llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
+
 namespace obfusc {
     BcfPass::BcfPass() {}
     BcfPass::~BcfPass() {}
@@ -26,9 +29,24 @@ namespace obfusc {
         //For every block copied
         for (llvm::BasicBlock* block : basicBlocks) {
             auto instruction = block->begin();
+            size_t loc = 0;
             if (block->getFirstNonPHIOrDbgOrLifetime()) {
                 instruction = static_cast<llvm::BasicBlock::iterator>(block->getFirstNonPHIOrDbgOrLifetime()); //skip past PHI instructions
             }
+            for(auto it=block->begin(); it != block->end();  it++){
+                if (it == instruction){
+                    break;
+                }
+                loc++;
+            }
+            
+            // llvm::outs() << "block size: " << block->size() << ", loc: " << loc << "\n";
+            if (block->size() < loc + 20) continue;
+            for(size_t i = 0; i < (block->size() - loc) / 2; ++i) instruction++;
+            if (instruction == block->end()) continue;
+            
+            auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
+            auto Int32Ty = llvm::Type::getInt32Ty(mod.getContext());
 
             llvm::BasicBlock* origBlock = block->splitBasicBlock(instruction); //Get original block
             llvm::BasicBlock* changedBlock = MakeBogusBlock(origBlock, func); //Get Bogus/altered version of same block
@@ -41,16 +59,23 @@ namespace obfusc {
 
             llvm::Type* int32Type = llvm::Type::getInt32Ty(mod.getContext());
 
+            int32_t n = ((rng() % (123 - 65) + 65) << 24) | ((rng() % (123 - 65) + 65) << 16) | ((rng() % (123 - 65) + 65) << 8) | ((rng() % (123 - 65) + 65) << 0);
             //Create global variables for comparison
-            llvm::GlobalVariable* x = new llvm::GlobalVariable(mod, int32Type, false, llvm::GlobalValue::LinkageTypes::InternalLinkage, llvm::ConstantInt::get(int32Type, 1));
-            llvm::GlobalVariable* y = new llvm::GlobalVariable(mod, int32Type, false, llvm::GlobalValue::LinkageTypes::InternalLinkage, llvm::ConstantInt::get(int32Type, 3));
+            llvm::GlobalVariable* x = new llvm::GlobalVariable(mod, int32Type, true, llvm::GlobalValue::LinkageTypes::InternalLinkage, llvm::ConstantInt::get(int32Type, n));
+            // llvm::GlobalVariable* y = new llvm::GlobalVariable(mod, int32Type, false, llvm::GlobalValue::LinkageTypes::InternalLinkage, llvm::ConstantInt::get(int32Type, 3));
 
+            llvm::IRBuilder<> IRB(block);
+            auto AOR = IRB.CreatePtrToInt(
+                IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
+                Int32Ty
+            );
+            auto Zero = MakeZero(mod.getContext(), IRB, AOR);
             //Load values from global vars
             llvm::LoadInst* opX = new llvm::LoadInst(int32Type, x, "", block);
-            llvm::LoadInst* opY = new llvm::LoadInst(int32Type, y, "", block);
+            // llvm::LoadInst* opY = new llvm::LoadInst(int32Type, y, "", block);
 
             //Create compare instruction
-            llvm::ICmpInst* cmpInstr = new llvm::ICmpInst(block, llvm::CmpInst::Predicate::ICMP_ULT, opX, opY);
+            auto cmpInstr = IRB.CreateCmp(llvm::CmpInst::Predicate::ICMP_SLT, Zero, opX);
 
             //Create branches to each block based on cmp instr
             llvm::BranchInst::Create(origBlock, changedBlock, cmpInstr, block);
@@ -61,9 +86,14 @@ namespace obfusc {
             auto endBlock = origBlock->splitBasicBlock(endInstr);
             origBlock->getTerminator()->eraseFromParent(); //remove from parent block
 
+            llvm::IRBuilder<> IRB2(origBlock);
+            
+            auto One = MakeOne(mod.getContext(), IRB2, AOR);
+            
+            auto cmpInstr2 = IRB2.CreateCmp(llvm::CmpInst::Predicate::ICMP_SLT, One, opX);
             //Make cmp instruction
-            cmpInstr = new llvm::ICmpInst(origBlock, llvm::CmpInst::Predicate::ICMP_ULT, opX, opY);
-            llvm::BranchInst::Create(endBlock, changedBlock, cmpInstr, origBlock); //Loop back from bogus block to changed block
+            // cmpInstr = new llvm::ICmpInst(origBlock, llvm::CmpInst::Predicate::ICMP_ULT, opX, opY);
+            llvm::BranchInst::Create(endBlock, changedBlock, cmpInstr2, origBlock); //Loop back from bogus block to changed block
 
             changed = true;
         }
@@ -107,7 +137,6 @@ namespace obfusc {
             if (instruction->isBinaryOp()) { //Swap operators for binary instrs
                 llvm::Value* op0 = instruction->getOperand(0);
                 llvm::Value* op1 = instruction->getOperand(1);
-
                 instruction->setOperand(0, op1);
                 instruction->setOperand(1, op0);
             }
@@ -133,7 +162,7 @@ namespace obfusc {
                     llvm::outs() << "*** --> X\n";
                 }
             }
-
+            #endif
             //Make Store instrs into Load instrs
             else if (instruction->getOpcode() == llvm::Instruction::Store) {
                 llvm::Value* op0 = instruction->getOperand(0);
@@ -142,7 +171,7 @@ namespace obfusc {
                 llvm::LoadInst* newOp = new llvm::LoadInst(op0->getType(), op1, "", &*instruction);
                 instruction = instruction->eraseFromParent();
             }
-            #endif
+            
         }
 
         return retBlock;

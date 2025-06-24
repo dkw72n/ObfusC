@@ -41,7 +41,7 @@ namespace obfusc {
         for (auto& block : func) {
             uint32_t cnt = 0;
             for (auto instruction = block.begin(); instruction != block.end(); instruction++) {
-                auto dice = rng() % 100;
+                auto dice = rng() % 30;
                 llvm::BinaryOperator* binOp = llvm::dyn_cast<llvm::BinaryOperator>(instruction); 
                 if (!binOp) //Is instruction a binary op
                     continue;

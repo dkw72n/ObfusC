@@ -19,7 +19,7 @@ namespace obfusc {
             Max
         };
 
-        static constexpr size_t s_RecursiveAmount = 20;
+        static constexpr size_t s_RecursiveAmount = 2;
 
         bool single_pass(llvm::Module& mod, llvm::Function& func);
         uint64_t GetSignedMax(llvm::Type* type);
