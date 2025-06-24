@@ -18,7 +18,7 @@ namespace obfusc {
         }
         for (const auto word : std::views::split(std::string_view(p, l), delim)){
             // llvm::outs() << word.data() << "\n";
-            auto pass = FuncAttributeStore::GetInstance().GetAttrPass(llvm::StringRef(word.data()));
+            auto pass = FuncAttributeStore::GetInstance().GetAttrPass(llvm::StringRef(word.data(), word.size()));
             if (!pass){
                 return {};
             }
@@ -29,18 +29,27 @@ namespace obfusc {
     llvm::PreservedAnalyses ObfuscationPassManager::run(llvm::Module& mod, llvm::ModuleAnalysisManager&) {
         bool changed = false;
         for (auto& func : mod.getFunctionList()) { //Get all functions in module
+            bool hit = false;
             for (auto& attrs : func.getAttributes()) { //Get each attribute lists attached to function
                 for (auto& attr : attrs) { //Get attributes one by one
-                    // llvm::outs() << "[~] attr: " << attr.getAsString() << "\n";
                     std::vector<IObfuscationPass*> vec;
                     if (attr.isStringAttribute()) { //If attribute is a string
+                        // llvm::outs() << "[~] attr: " << attr.getAsString() << "\n";
                         auto res = get_passes_from_attr(attr.getAsString());
                         if (res){
+                            hit = true;
                             for(auto pass: *res){
                                 llvm::outs() << "[-] running " << pass << "\n";
                                 changed |= pass->obfuscate(mod, func); //Call obfuscate func
                             }
                         }
+                    }
+                }
+            }
+            if (!hit){
+                if (func.getName().starts_with("lua")){
+                    for(auto pass: ObfsRegistar::GetInstance().passes){
+                        changed |= pass->obfuscate(mod, func);
                     }
                 }
             }

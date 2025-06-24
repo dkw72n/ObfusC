@@ -37,8 +37,9 @@ namespace obfusc {
         if (attr[0] == '\"') {
             attrCStr = attr.substr(1, attr.size()-2).data();
         }
-
+        // llvm::outs() << "size of m_info: " << m_info.size() << "\n";
         for (auto& info : m_info) {
+            // llvm::outs() << "   " << info.name << "\n";
             if (strncasecmp(info.name, attrCStr, info.size) == 0) {
                 return info.pass;
             }

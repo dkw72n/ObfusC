@@ -15,3 +15,16 @@ protected:
     virtual uint64_t GetRandomNumber(llvm::Type* type);
     std::mt19937_64 m_randGen64;
 };
+
+struct ObfsRegistar {
+    std::vector<IObfuscationPass*> passes;
+
+    static ObfsRegistar& GetInstance();
+};
+
+template<typename T>
+struct OBfsRegister {
+    OBfsRegister() {
+        ObfsRegistar::GetInstance().passes.emplace_back(new T());
+    }
+};

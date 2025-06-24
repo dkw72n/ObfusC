@@ -17,3 +17,11 @@ uint64_t IObfuscationPass::GetRandomNumber(llvm::Type* type) {
 
     return m_randGen64()%modNum;
 }
+
+ObfsRegistar& ObfsRegistar::GetInstance(){
+    static ObfsRegistar* sInstance = NULL;
+    if (!sInstance){
+        sInstance = new ObfsRegistar();
+    }
+    return *sInstance;
+}

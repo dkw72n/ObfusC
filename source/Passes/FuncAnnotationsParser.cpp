@@ -24,7 +24,7 @@ namespace obfusc {
             if (!func || !globalStrPtr) {
                 continue;
             }
-
+            
             if (llvm::ConstantDataArray* strArray = llvm::dyn_cast<llvm::ConstantDataArray>(globalStrPtr->getOperand(0))) { //Get Annotation str
                 llvm::StringRef str = strArray->getAsString();
                 // llvm::outs() << "[-] FuncAnnotationsParser::run " << str << "\n";
@@ -61,6 +61,7 @@ namespace obfusc {
             }
             // llvm::outs() << Attr.getAttrName()->deuglifiedName() << "  NumArgs:" << Attr.getNumArgs() << "\n";
             // Attr.getArgAsExpr(0)->dump();
+            // llvm::outs() << Attr.getAttrName()->getName() << "\n";
             if (auto* stringLiteral = llvm::dyn_cast<clang::StringLiteral>(Attr.getArgAsExpr(0))) {
                 // return stringLiteral->getBytes().data();
                 llvm::outs() << "dyn_cast:" << stringLiteral->getString() << "\n";
