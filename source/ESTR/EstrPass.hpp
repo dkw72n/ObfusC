@@ -10,6 +10,10 @@ namespace obfusc {
         ~EstrPass() override;
 
         bool obfuscate(llvm::Module& mod, llvm::Function& func) override;
-    
+    private:
+        bool touched;
+        std::map<llvm::GlobalVariable*, int64_t> removing;
+
+        void collectRemovables(llvm::Module& mod);
     };
 }

@@ -28,7 +28,8 @@ namespace obfusc {
         }
         for (const auto word : std::views::split(std::string_view(p, l), delim)){
             // llvm::outs() << word.data() << "\n";
-            auto pass = FuncAttributeStore::GetInstance().GetAttrPass(llvm::StringRef(word.data(), word.size()));
+            // auto pass = FuncAttributeStore::GetInstance().GetAttrPass(llvm::StringRef(word.data(), word.size()));
+            auto pass = ObfsRegistar::GetInstance().passes[llvm::StringRef(word.data(), word.size()).str()];
             if (!pass){
                 return {};
             }
@@ -58,7 +59,8 @@ namespace obfusc {
             }
             if (is_marked) continue;
             if (is_excluded(mod, func)) continue;
-            for(auto pass: {"estr", "icall", "bcf"}){
+            // for(auto pass: {"estr", "icall", "bcf"}){
+            for(auto pass: {"estr"}){
                 changed |= ObfsRegistar::GetInstance().passes[pass]->obfuscate(mod, func);
             }
         }
