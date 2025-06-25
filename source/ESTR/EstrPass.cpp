@@ -13,6 +13,8 @@ static std::mt19937 rng{rd()};
 
 static OBfsRegister<obfusc::EstrPass> sRegEstr("estr");
 
+llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
+
 static bool isArgOfKnownCalls(llvm::CallInst* CI){
     return !!CI;
 }
@@ -27,9 +29,11 @@ static bool safeToRemove(llvm::GlobalVariable& G){
     return true;
 }
 
-static int64_t shortStringToI64(llvm::StringRef& s){
+static std::vector<int32_t> shortStringToI32List(llvm::StringRef& s){
     auto cs = s.str();
-    auto ret = *(int64_t*)cs.c_str();
+    std::vector<int32_t> ret;
+    ret.resize((s.size() + sizeof(ret[0])) / sizeof(ret[0]));
+    memcpy(&ret[0], cs.c_str(), cs.size() + 1);
     return ret;
 }
 namespace obfusc {
@@ -57,12 +61,14 @@ namespace obfusc {
                     llvm::outs() << "G:";
                     G.dump();    
                     if (safeToRemove(G)){
-                        if (s.size() >= 8){
+                        
+                        if (s.size() >= 4){
                             llvm::outs() << "\t[X] [TODO] (size == " << s.size() << ") >= 8\n";
                             continue;
                         }
+                        
                         llvm::outs() << "\t[O] REMOVING " << s.size() << "\n";
-                        removing.insert({&G, shortStringToI64(s)});
+                        removing.insert({&G, shortStringToI32List(s)});
                     }
                     
                 }
@@ -72,7 +78,9 @@ namespace obfusc {
     bool EstrPass::obfuscate(llvm::Module& mod, llvm::Function& func){
         collectRemovables(mod);
         llvm::outs() << "[ESTR]" << func.getName() << "\n";
-        auto Int64Ty = llvm::Type::getInt64Ty(mod.getContext());
+        auto& Context = mod.getContext();
+        auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
+        auto Int32Ty = llvm::Type::getInt32Ty(Context);
         bool changed = false;
         for(auto& BB: func){
             for(auto& I: BB){
@@ -81,8 +89,34 @@ namespace obfusc {
                     if (removing.contains(G)){
                         if (auto CI = llvm::dyn_cast<llvm::CallInst>(&I)){
                             llvm::IRBuilder<> IRB(&I);
-                            auto SS = IRB.CreateAlloca(Int64Ty);
-                            IRB.CreateStore(llvm::ConstantInt::get(Int64Ty, removing[G]), SS);
+                            auto AOR = IRB.CreatePtrToInt(
+                                IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
+                                Int32Ty
+                            );
+                            auto V = removing[G];
+                            auto SS = IRB.CreateAlloca(Int32Ty, llvm::ConstantInt::get(Int32Ty, V.size()));
+                            for(size_t i = 0; i < V.size(); ++i){
+                                switch(i % 3 + 3){
+                                    case 0:
+                                        IRB.CreateStore(
+                                            MakeN(Context, IRB, AOR, V[i]), 
+                                            IRB.CreateGEP(Int32Ty, SS, llvm::ConstantInt::get(Int32Ty, i))
+                                        );
+                                        break;
+                                    case 1:
+                                        IRB.CreateStore(
+                                            llvm::ConstantInt::get(Int32Ty, V[i]), 
+                                            IRB.CreateGEP(Int32Ty, SS, MakeN(Context, IRB, AOR, i))
+                                        );
+                                        break;
+                                    default:
+                                        IRB.CreateStore(
+                                            llvm::ConstantInt::get(Int32Ty, V[i]), 
+                                            IRB.CreateGEP(Int32Ty, SS, llvm::ConstantInt::get(Int32Ty, i))
+                                        );
+                                        break;
+                                }
+                            }
                             CI->replaceUsesOfWith(G, SS);
                             llvm::outs() << "[M] "; G->dump();
                             changed |= true;
