@@ -14,6 +14,7 @@ static std::mt19937 rng{rd()};
 llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
 llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
 
+static OBfsRegister<obfusc::BcfPass> sRegIcall("bcf");
 namespace obfusc {
     BcfPass::BcfPass() {}
     BcfPass::~BcfPass() {}
@@ -39,7 +40,7 @@ namespace obfusc {
                 }
                 loc++;
             }
-            
+
             // llvm::outs() << "block size: " << block->size() << ", loc: " << loc << "\n";
             if (block->size() < loc + 20) continue;
             for(size_t i = 0; i < (block->size() - loc) / 2; ++i) instruction++;

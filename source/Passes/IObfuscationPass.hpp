@@ -3,6 +3,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <random>
+#include <map>
 
 class IObfuscationPass {
 public:
@@ -17,14 +18,14 @@ protected:
 };
 
 struct ObfsRegistar {
-    std::vector<IObfuscationPass*> passes;
+    std::map<std::string, IObfuscationPass*> passes;
 
     static ObfsRegistar& GetInstance();
 };
 
 template<typename T>
 struct OBfsRegister {
-    OBfsRegister() {
-        ObfsRegistar::GetInstance().passes.emplace_back(new T());
+    OBfsRegister(const char* n) {
+        ObfsRegistar::GetInstance().passes[n] = new T();
     }
 };

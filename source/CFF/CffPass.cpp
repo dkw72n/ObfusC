@@ -5,6 +5,7 @@
 //Heavily based on Obfuscator-LLVM
 //https://github.com/obfuscator-llvm/obfuscator/blob/llvm-4.0/lib/Transforms/Obfuscation/Flattening.cpp
 
+static OBfsRegister<obfusc::CffPass> sRegCff("cff");
 namespace obfusc {
     CffPass::CffPass() {}
     CffPass::~CffPass() {}

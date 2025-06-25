@@ -11,6 +11,8 @@ static std::mt19937 rng{rd()};
 // https://github.com/DreamSoule/ollvm17/blob/main/llvm-project/llvm/lib/Passes/Obfuscation/IndirectBranch.cpp
 
 
+static OBfsRegister<obfusc::IbrPass> sRegIcall("ibr");
+
 namespace obfusc {
     IbrPass::IbrPass() {}
     IbrPass::~IbrPass() {}

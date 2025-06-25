@@ -113,7 +113,7 @@ static void number_callees(llvm::Function& F, CalleeMap& M){
 static llvm::GlobalVariable* make_function_list(llvm::Module& M, CalleeMap& CM){
     std::string GVName = CM.name("icall_gv_");
     llvm::GlobalVariable *GV = M.getNamedGlobal(GVName);
-    llvm::outs() << "GVName: " << GVName << "\n";
+    // llvm::outs() << "GVName: " << GVName << "\n";
     if (GV) return GV;
     std::vector<llvm::Constant *> Elements;
     auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(M.getContext()));
@@ -173,22 +173,25 @@ llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Val
     auto Int32Ty = llvm::Type::getInt32Ty(Context);
 #if 1
     if (N == 0) return MakeZero(Context, IRB, Value);
+    if (N == 1) return MakeOne(Context, IRB, Value); 
     if (N < 0) return IRB.CreateNeg(
         MakeN(Context, IRB, Value, -N)
     );
     auto S = N % 2 ? MakeOne(Context, IRB, Value): MakeZero(Context, IRB, Value);
-    auto X = MakeN(Context, IRB, Value, N / 2);
-    auto Y = IRB.CreateAdd(X, X);
-    if (N % 2){
-        return IRB.CreateAdd(Y, MakeOne(Context, IRB, Value));
-    } 
-    return Y;
+    auto X = MakeN(Context, IRB, Value, N / 3);
+    return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N%3), IRB.CreateMul(llvm::ConstantInt::get(Int32Ty, 3), X));
+
+    //auto Y = IRB.CreateAdd(X, X);
+    //if (N % 2){
+    //    return IRB.CreateAdd(Y, MakeOne(Context, IRB, Value));
+    //} 
+    //return Y;
 #else
     return llvm::ConstantInt::get(Int32Ty, N);
 #endif
 }
 
-static OBfsRegister<obfusc::IcallPass> sRegIcall;
+static OBfsRegister<obfusc::IcallPass> sRegIcall("icall");
 
 namespace obfusc {
     IcallPass::IcallPass() {}
@@ -196,7 +199,7 @@ namespace obfusc {
 
     bool IcallPass::obfuscate(llvm::Module& mod, llvm::Function& func){
         CalleeMap CM;
-        llvm::outs() << "[-] in icall\n";
+        // llvm::outs() << "[-] in icall\n";
         auto& ctx = func.getContext();
         number_callees(func, CM);
         if (CM.empty())
