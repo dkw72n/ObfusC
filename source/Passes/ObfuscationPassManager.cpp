@@ -8,6 +8,11 @@ namespace obfusc {
 
     
     static bool is_excluded(llvm::Module& mod, llvm::Function& func){
+        // llvm::errs() << "[~] FUNC: " << func.getName() << "\n";
+        // llvm::errs() << "    + isIntrinsic      : " << func.isIntrinsic() << "\n";
+        // llvm::errs() << "    + isDeclaration    : " << func.isDeclaration() << "\n";
+        if (func.isIntrinsic()) return true;
+        if (func.isDeclaration()) return true;
         return false;
     }
 
