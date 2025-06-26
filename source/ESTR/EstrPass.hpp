@@ -12,7 +12,7 @@ namespace obfusc {
         bool obfuscate(llvm::Module& mod, llvm::Function& func) override;
     private:
         bool touched;
-        std::map<llvm::GlobalVariable*, std::vector<int32_t>> removing;
+        std::map<llvm::GlobalVariable*, std::vector<int32_t>> cstrings;
 
         void collectRemovables(llvm::Module& mod);
     };

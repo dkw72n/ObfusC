@@ -19,12 +19,25 @@ static bool isArgOfKnownCalls(llvm::CallInst* CI){
     return !!CI;
 }
 
-static bool safeToRemove(llvm::GlobalVariable& G){
+static bool checkUsers(llvm::GlobalVariable& G){
     for(auto *U:G.users()){
-        if (!isArgOfKnownCalls(llvm::dyn_cast<llvm::CallInst>(U))) {
-            // llvm::outs() << "\t[X] "; U->dump();
-            return false;
+        if (auto CI = llvm::dyn_cast<llvm::CallInst>(U)) {
+            // llvm::outs() << "\t[CALL] "; CI->dump();
+            continue;
         }
+        if (auto SI = llvm::dyn_cast<llvm::SelectInst>(U)) {
+            llvm::outs() << "\t[SLCT] "; SI->dump();
+            continue;
+        }
+        if (auto CD = llvm::dyn_cast<llvm::ConstantArray>(U)){
+            llvm::outs() << "\t[KARR] "; CD->dump();
+            continue;
+        }
+        if (auto CS = llvm::dyn_cast<llvm::ConstantStruct>(U)){
+            llvm::outs() << "\t[STRU] "; CS->dump();
+            continue;
+        }
+        llvm::outs() << "\t[????] "; U->dump();
     }
     return true;
 }
@@ -60,17 +73,8 @@ namespace obfusc {
                     auto s = CDS->getAsCString();
                     // llvm::outs() << "G:";
                     // G.dump();    
-                    if (safeToRemove(G)){
-                        
-                        if (s.size() >= 64){
-                            // llvm::outs() << "\t[X] [TODO] (size == " << s.size() << ") >= 8\n";
-                            continue;
-                        }
-                        
-                        // llvm::outs() << "\t[O] REMOVING " << s.size() << "\n";
-                        removing.insert({&G, shortStringToI32List(s)});
-                    }
-                    
+                    cstrings.insert({&G, shortStringToI32List(s)});
+                    // checkUsers(G);
                 }
             }
         }
@@ -83,16 +87,32 @@ namespace obfusc {
         bool changed = false;
         for(auto& BB: func){
             for(auto& I: BB){
+                
                 for(auto& Op: I.operands()){
                     auto *G = llvm::dyn_cast<llvm::GlobalVariable>(Op->stripPointerCasts());
-                    if (removing.contains(G)){
-                        if (auto CI = llvm::dyn_cast<llvm::CallInst>(&I)){
+                    if (cstrings.contains(G)){
+                        #if 0
+                        if (!llvm::dyn_cast<llvm::CallInst>(&I)) {
+                            llvm::outs() << "UNKNOWN INST:" ; I.dump();
+                            continue;
+                        }
+                        #endif
+                        /*
+                        Test result on lua 5.4.8:
+                        [o] CallInst
+                        [o] LoadInst
+                        [x] StoreInst
+                        [x] SelectInst
+                        [x] PhiNode
+                        */
+                        if (llvm::dyn_cast<llvm::CallInst>(&I) || llvm::dyn_cast<llvm::LoadInst>(&I))
+                        {
                             llvm::IRBuilder<> IRB(&I);
                             auto AOR = IRB.CreatePtrToInt(
                                 IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
                                 Int32Ty
                             );
-                            auto V = removing[G];
+                            auto V = cstrings[G];
                             auto SS = IRB.CreateAlloca(Int32Ty, llvm::ConstantInt::get(Int32Ty, V.size()));
                             for(size_t i = 0; i < V.size(); ++i){
                                 switch(i % 3){
@@ -116,22 +136,24 @@ namespace obfusc {
                                         break;
                                 }
                             }
-                            llvm::outs() << "  [I] "; CI->dump();
-                            CI->replaceUsesOfWith(G, SS);
-                            llvm::outs() << "  [M] "; G->dump();
+                            // llvm::outs() << "  [I] "; I.dump();
+                            I.replaceUsesOfWith(G, SS);
+                            // llvm::outs() << "  [M] "; G->dump();
                             G->removeDeadConstantUsers();
                             if (G->use_empty()){
-                                llvm::outs() << "  OK TO REMOVE\n";
+                                // llvm::outs() << "  OK TO REMOVE\n";
                                 G->removeFromParent();
                             }
                             changed |= true;
+                        } else {
+                            llvm::outs() << "UNHANDLED: "; G->dump();
                         }
                     }
                 }
             }
         }
         if (changed){
-            llvm::outs() << "[ESTR]" << func.getName() << "\n";
+            // llvm::outs() << "[ESTR]" << func.getName() << "\n";
         }
         return true;
     }
