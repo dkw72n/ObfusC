@@ -1,7 +1,6 @@
 #include "EstrPass.hpp"
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
-
 #include <random>
 
 static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
@@ -42,6 +41,118 @@ static bool checkUsers(llvm::GlobalVariable& G){
     return true;
 }
 
+struct TaintAnalysis{
+    
+    TaintAnalysis(llvm::Function& Fun, llvm::Value* V): func(Fun){
+        tainted.insert(V);
+    }
+
+    bool Check(){
+        while(_run()){
+            ;
+        }
+        for(auto& a: func.args()){
+            if (tainted.contains(&a)){
+                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED ARGS:"; a.dump();
+                return false;
+            }
+        }
+        for(auto r: retval){
+            if (tainted.contains(r)){
+                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED RETS:"; r->dump();
+                return false;
+            }
+        }
+        for(auto c: cmpval){
+            if (tainted.contains(c)){
+                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED CMP:"; c->dump();
+                return false;
+            }
+        }
+        return true;
+        // return false;
+    }
+private:
+    bool _run(){
+        bool updated = false;
+        for (auto& BB: func){
+            for(auto& I: BB){
+                if (auto D = llvm::dyn_cast<llvm::StoreInst>(&I)){
+                    auto dst = D->getPointerOperand();
+                    auto src = D->getValueOperand();
+                    if (tainted.contains(src)){
+                        auto res = tainted.insert(dst);
+                        updated |= res.second;
+                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                    }
+                    if (tainted.contains(dst)){
+                        auto res = tainted.insert(src);
+                        updated |= res.second;
+                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                    }
+                    continue;
+                }
+                if (auto D = llvm::dyn_cast<llvm::SelectInst>(&I)){
+                    auto tval = D->getTrueValue();
+                    auto fval = D->getFalseValue();
+                    if (tainted.contains(tval) || tainted.contains(fval)){
+                        auto res = tainted.insert(D);
+                        updated |= res.second;
+                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                    }
+                    continue;
+                }
+                if (auto D = llvm::dyn_cast<llvm::GetElementPtrInst>(&I)){
+                    auto ptr = D->getPointerOperand();
+                    if (tainted.contains(ptr)){
+                        auto res = tainted.insert(D);
+                        updated |= res.second;
+                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                    }
+                    if (tainted.contains(D)){
+                        auto res = tainted.insert(ptr);
+                        updated |= res.second;
+                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                    }
+                    continue;
+                }
+                if (auto D = llvm::dyn_cast<llvm::LoadInst>(&I)){
+                    auto src = D->getPointerOperand();
+                    if (tainted.contains(src)){
+                        auto res = tainted.insert(D);
+                        updated |= res.second;
+                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                    }
+                    if (tainted.contains(D)){
+                        auto res = tainted.insert(src);
+                        updated |= res.second;
+                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                    }
+                    continue;
+                }
+                if (auto D = llvm::dyn_cast<llvm::ReturnInst>(&I)){
+                    if (auto ret = D->getReturnValue()){
+                        retval.insert(ret);
+                    }
+                    continue;
+                }
+                if (auto D = llvm::dyn_cast<llvm::ICmpInst>(&I)){
+                    for(auto& op: D->operands()){
+                        cmpval.insert(op.get());
+                    }
+                    continue;
+                }
+                // llvm::outs() << "\t SKIP "; I.dump();
+            }
+        }
+        return updated;
+    }
+
+    std::set<llvm::Value*> tainted;
+    std::set<llvm::Value*> retval;
+    std::set<llvm::Value*> cmpval;
+    llvm::Function& func;
+};
 static std::vector<int32_t> shortStringToI32List(llvm::StringRef& s){
     auto cs = s.str();
     std::vector<int32_t> ret;
@@ -85,15 +196,15 @@ namespace obfusc {
         auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
         auto Int32Ty = llvm::Type::getInt32Ty(Context);
         bool changed = false;
-        if (mod.getName() == "ldebug.c"){ // ldebug.c, skip
-             return false;
-        }
         for(auto& BB: func){
             for(auto& I: BB){
-                
                 for(auto& Op: I.operands()){
                     auto *G = llvm::dyn_cast<llvm::GlobalVariable>(Op->stripPointerCasts());
                     if (cstrings.contains(G)){
+                        if (llvm::dyn_cast<llvm::PHINode>(&I)){
+                            llvm::outs() << "[+] skip PhiNode: "; I.dump();
+                            continue;
+                        }
                         #if 0
                         if (!llvm::dyn_cast<llvm::CallInst>(&I)) {
                             llvm::outs() << "UNKNOWN INST:" ; I.dump();
@@ -111,11 +222,13 @@ namespace obfusc {
                             跟踪其去向，看是否传到外面了
                             PhiNode
                         */
-                        if (llvm::dyn_cast<llvm::CallInst>(&I) || llvm::dyn_cast<llvm::LoadInst>(&I) || llvm::dyn_cast<llvm::SelectInst>(&I) || llvm::dyn_cast<llvm::StoreInst>(&I))
+                        if (!TaintAnalysis(func, G).Check()) continue;
+                        // if (llvm::dyn_cast<llvm::CallInst>(&I) || llvm::dyn_cast<llvm::LoadInst>(&I) || llvm::dyn_cast<llvm::SelectInst>(&I) || llvm::dyn_cast<llvm::StoreInst>(&I))
+                        if(true)
                         {
-                            if (llvm::dyn_cast<llvm::SelectInst>(&I) || llvm::dyn_cast<llvm::StoreInst>(&I)){
-                                llvm::outs() << "[WARN][" << mod.getName() << "][" << func.getName(); I.dump();G->dump();
-                            }
+                            //if (llvm::dyn_cast<llvm::SelectInst>(&I) || llvm::dyn_cast<llvm::StoreInst>(&I)){
+                            //    llvm::outs() << "[WARN][" << mod.getName() << "][" << func.getName(); I.dump();G->dump();
+                            //}
                             llvm::IRBuilder<> IRB(&I);
                             auto AOR = IRB.CreatePtrToInt(
                                 IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
