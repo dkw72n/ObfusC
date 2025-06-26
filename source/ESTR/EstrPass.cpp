@@ -85,6 +85,9 @@ namespace obfusc {
         auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
         auto Int32Ty = llvm::Type::getInt32Ty(Context);
         bool changed = false;
+        if (mod.getName() == "ldebug.c"){ // ldebug.c, skip
+             return false;
+        }
         for(auto& BB: func){
             for(auto& I: BB){
                 
@@ -101,12 +104,18 @@ namespace obfusc {
                         Test result on lua 5.4.8:
                         [o] CallInst
                         [o] LoadInst
-                        [x] StoreInst
-                        [x] SelectInst
+                        [?] StoreInst   : -ldebug.c
+                        [?] SelectInst  : -ldebug.c
                         [x] PhiNode
+                        TODO: 
+                            跟踪其去向，看是否传到外面了
+                            PhiNode
                         */
-                        if (llvm::dyn_cast<llvm::CallInst>(&I) || llvm::dyn_cast<llvm::LoadInst>(&I))
+                        if (llvm::dyn_cast<llvm::CallInst>(&I) || llvm::dyn_cast<llvm::LoadInst>(&I) || llvm::dyn_cast<llvm::SelectInst>(&I) || llvm::dyn_cast<llvm::StoreInst>(&I))
                         {
+                            if (llvm::dyn_cast<llvm::SelectInst>(&I) || llvm::dyn_cast<llvm::StoreInst>(&I)){
+                                llvm::outs() << "[WARN][" << mod.getName() << "][" << func.getName(); I.dump();G->dump();
+                            }
                             llvm::IRBuilder<> IRB(&I);
                             auto AOR = IRB.CreatePtrToInt(
                                 IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
@@ -115,7 +124,7 @@ namespace obfusc {
                             auto V = cstrings[G];
                             auto SS = IRB.CreateAlloca(Int32Ty, llvm::ConstantInt::get(Int32Ty, V.size()));
                             for(size_t i = 0; i < V.size(); ++i){
-                                switch(i % 3){
+                                switch(i % 3 + 3){
                                     case 0:
                                         IRB.CreateStore(
                                             MakeN(Context, IRB, AOR, V[i]), 
@@ -142,11 +151,13 @@ namespace obfusc {
                             G->removeDeadConstantUsers();
                             if (G->use_empty()){
                                 // llvm::outs() << "  OK TO REMOVE\n";
-                                G->removeFromParent();
+                                // G->dropAllReferences();
+                                G->eraseFromParent();
                             }
                             changed |= true;
                         } else {
                             llvm::outs() << "UNHANDLED: "; G->dump();
+                            I.dump();
                         }
                     }
                 }
@@ -155,6 +166,6 @@ namespace obfusc {
         if (changed){
             // llvm::outs() << "[ESTR]" << func.getName() << "\n";
         }
-        return true;
+        return changed;
     }
 }
