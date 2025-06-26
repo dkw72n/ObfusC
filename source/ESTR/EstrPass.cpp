@@ -22,7 +22,7 @@ static bool isArgOfKnownCalls(llvm::CallInst* CI){
 static bool safeToRemove(llvm::GlobalVariable& G){
     for(auto *U:G.users()){
         if (!isArgOfKnownCalls(llvm::dyn_cast<llvm::CallInst>(U))) {
-            llvm::outs() << "\t[X] "; U->dump();
+            // llvm::outs() << "\t[X] "; U->dump();
             return false;
         }
     }
@@ -58,16 +58,16 @@ namespace obfusc {
             if (auto CDS = llvm::dyn_cast<llvm::ConstantDataSequential>(Init)){
                 if (CDS->isCString()){
                     auto s = CDS->getAsCString();
-                    llvm::outs() << "G:";
-                    G.dump();    
+                    // llvm::outs() << "G:";
+                    // G.dump();    
                     if (safeToRemove(G)){
                         
-                        if (s.size() >= 4){
-                            llvm::outs() << "\t[X] [TODO] (size == " << s.size() << ") >= 8\n";
+                        if (s.size() >= 64){
+                            // llvm::outs() << "\t[X] [TODO] (size == " << s.size() << ") >= 8\n";
                             continue;
                         }
                         
-                        llvm::outs() << "\t[O] REMOVING " << s.size() << "\n";
+                        // llvm::outs() << "\t[O] REMOVING " << s.size() << "\n";
                         removing.insert({&G, shortStringToI32List(s)});
                     }
                     
@@ -77,7 +77,6 @@ namespace obfusc {
     }
     bool EstrPass::obfuscate(llvm::Module& mod, llvm::Function& func){
         collectRemovables(mod);
-        llvm::outs() << "[ESTR]" << func.getName() << "\n";
         auto& Context = mod.getContext();
         auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
         auto Int32Ty = llvm::Type::getInt32Ty(Context);
@@ -96,7 +95,7 @@ namespace obfusc {
                             auto V = removing[G];
                             auto SS = IRB.CreateAlloca(Int32Ty, llvm::ConstantInt::get(Int32Ty, V.size()));
                             for(size_t i = 0; i < V.size(); ++i){
-                                switch(i % 3 + 3){
+                                switch(i % 3){
                                     case 0:
                                         IRB.CreateStore(
                                             MakeN(Context, IRB, AOR, V[i]), 
@@ -117,15 +116,23 @@ namespace obfusc {
                                         break;
                                 }
                             }
+                            llvm::outs() << "  [I] "; CI->dump();
                             CI->replaceUsesOfWith(G, SS);
-                            llvm::outs() << "[M] "; G->dump();
+                            llvm::outs() << "  [M] "; G->dump();
+                            G->removeDeadConstantUsers();
+                            if (G->use_empty()){
+                                llvm::outs() << "  OK TO REMOVE\n";
+                                G->removeFromParent();
+                            }
                             changed |= true;
                         }
                     }
                 }
             }
         }
-
+        if (changed){
+            llvm::outs() << "[ESTR]" << func.getName() << "\n";
+        }
         return true;
     }
 }

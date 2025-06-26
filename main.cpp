@@ -16,7 +16,7 @@ namespace obfusc {
                         MPM.addPass(obfusc::FuncAnnotationsParser());
                     }
                 );
-                PB.registerOptimizerLastEPCallback(
+                PB.registerOptimizerEarlyEPCallback(
                     [=](llvm::ModulePassManager &MPM, llvm::OptimizationLevel Level) {
                         MPM.addPass(obfusc::ObfuscationPassManager());
                     }
