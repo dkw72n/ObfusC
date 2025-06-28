@@ -48,9 +48,7 @@ struct TaintAnalysis{
     }
 
     bool Check(){
-        while(_run()){
-            ;
-        }
+        while(_run());
         for(auto& a: func.args()){
             if (tainted.contains(&a)){
                 llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED ARGS:"; a.dump();
@@ -66,6 +64,12 @@ struct TaintAnalysis{
         for(auto c: cmpval){
             if (tainted.contains(c)){
                 llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED CMP:"; c->dump();
+                return false;
+            }
+        }
+        for(auto t: tailcall){
+            if (tainted.contains(t)){
+                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED TAILCALL:"; t->dump();
                 return false;
             }
         }
@@ -130,6 +134,25 @@ private:
                     }
                     continue;
                 }
+                if (auto D = llvm::dyn_cast<llvm::CallInst>(&I)){
+                    bool arg_tainted = false;
+                    for(auto& arg: D->args()){
+                        if (tainted.contains(arg)){
+                            arg_tainted = true;
+                            break;
+                        }
+                    }
+                    if (D->isTailCall()){
+                        tailcall.insert(D);
+                        if (arg_tainted){
+                            auto res = tainted.insert(D);
+                            updated |= res.second;
+                            if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        }
+                    }
+                    
+                    continue;
+                }
                 if (auto D = llvm::dyn_cast<llvm::ReturnInst>(&I)){
                     if (auto ret = D->getReturnValue()){
                         retval.insert(ret);
@@ -151,6 +174,7 @@ private:
     std::set<llvm::Value*> tainted;
     std::set<llvm::Value*> retval;
     std::set<llvm::Value*> cmpval;
+    std::set<llvm::Value*> tailcall;
     llvm::Function& func;
 };
 static std::vector<int32_t> shortStringToI32List(llvm::StringRef& s){
@@ -237,7 +261,7 @@ namespace obfusc {
                             auto V = cstrings[G];
                             auto SS = IRB.CreateAlloca(Int32Ty, llvm::ConstantInt::get(Int32Ty, V.size()));
                             for(size_t i = 0; i < V.size(); ++i){
-                                switch(i % 3 + 3){
+                                switch(rng() % 3 + 3){
                                     case 0:
                                         IRB.CreateStore(
                                             MakeN(Context, IRB, AOR, V[i]), 
@@ -275,9 +299,6 @@ namespace obfusc {
                     }
                 }
             }
-        }
-        if (changed){
-            // llvm::outs() << "[ESTR]" << func.getName() << "\n";
         }
         return changed;
     }

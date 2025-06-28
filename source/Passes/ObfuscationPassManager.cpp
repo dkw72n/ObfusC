@@ -59,10 +59,11 @@ namespace obfusc {
             }
             if (is_marked) continue;
             if (is_excluded(mod, func)) continue;
-            // for(auto pass: {"estr", "icall", "bcf"}){
+            #if 1
             for(auto pass: {"estr"}){
                 changed |= ObfsRegistar::GetInstance().passes[pass]->obfuscate(mod, func);
             }
+            #endif
         }
 
         if (changed) {
