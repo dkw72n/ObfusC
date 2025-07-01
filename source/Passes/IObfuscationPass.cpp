@@ -1,6 +1,10 @@
 
 #include "IObfuscationPass.hpp"
 
+static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
+// initialize Mersennes' twister using rd to generate the seed
+std::mt19937 rng{rd()}; 
+
 IObfuscationPass::IObfuscationPass() {
     std::random_device rd;  //Get hardware specific random device
     m_randGen64.seed(rd()); //Seed Mersenne Twister random generator  

@@ -4,10 +4,6 @@
 
 #include <random>
 
-static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
-// initialize Mersennes' twister using rd to generate the seed
-static std::mt19937 rng{rd()}; 
-
 //Heavily based on Obfuscator-LLVM
 //https://github.com/obfuscator-llvm/obfuscator/blob/llvm-4.0/lib/Transforms/Obfuscation/BogusControlFlow.cpp
 

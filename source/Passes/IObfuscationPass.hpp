@@ -31,3 +31,5 @@ struct OBfsRegister {
         ObfsRegistar::GetInstance().passes[n] = new T();
     }
 };
+
+extern std::mt19937 rng;

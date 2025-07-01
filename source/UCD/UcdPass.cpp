@@ -2,11 +2,6 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-#include <random>
-
-static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
-// initialize Mersennes' twister using rd to generate the seed
-static std::mt19937 rng{rd()}; 
 
 static OBfsRegister<obfusc::UcdPass> sRegUcd("ucd");
 
@@ -303,6 +298,7 @@ namespace obfusc {
 
     bool UcdPass::fini(){
         bool changed = false;
+        #if 0
         for(auto g: targets){
             if (g->use_empty()){
                 llvm::outs() << "[=] [ERASE] " << g->getName() << "\n";
@@ -310,6 +306,7 @@ namespace obfusc {
                 changed += true;
             }
         }
+        #endif
         for(auto f: funcs){
             if (f->use_empty()){
                 llvm::outs() << "[=] [ERASE] " << f->getName() << "\n";

@@ -3,9 +3,6 @@
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <random>
 
-static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
-// initialize Mersennes' twister using rd to generate the seed
-static std::mt19937 rng{rd()}; 
 
 // https://github.com/DreamSoule/ollvm17/blob/main/llvm-project/llvm/lib/Passes/Obfuscation/IndirectBranch.cpp
 
