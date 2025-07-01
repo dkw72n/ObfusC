@@ -1,6 +1,7 @@
 #include "UcdPass.hpp"
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <random>
 
 static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
@@ -9,7 +10,18 @@ static std::mt19937 rng{rd()};
 
 static OBfsRegister<obfusc::UcdPass> sRegUcd("ucd");
 
+llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
 
+static llvm::Value* make_n(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, int32_t N)
+{
+    auto Int32Ty = llvm::Type::getInt32Ty(Context); 
+    auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(Context));
+    auto AOR = IRB.CreatePtrToInt(
+        IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
+        Int32Ty
+    );
+    return MakeN(Context, IRB, AOR, N);
+}
 static std::string make_flag_name(llvm::Value* v){
     char name[64];
     sprintf(name, "_%p_ucd_inited", v);
@@ -111,6 +123,7 @@ namespace obfusc {
     }
     bool UcdPass::obfuscate(llvm::Module& mod, llvm::Function& func){
         collectRemovables(mod);
+        std::set<llvm::CallInst*> ci_to_inline;
         bool changed = false;
         for(auto& BB: func){
             for(auto& I: BB){
@@ -127,7 +140,11 @@ namespace obfusc {
                             if (auto v = insertLazyInit(mod, func, G)){
                                 if (auto F = llvm::dyn_cast<llvm::Function>(v)){
                                     llvm::IRBuilder<> IRB(&I);
-                                    I.replaceUsesOfWith(G, IRB.CreateCall(F->getFunctionType(), F, {}));
+                                    
+                                    auto CI = IRB.CreateCall(F->getFunctionType(), F, {});
+                                    
+                                    ci_to_inline.insert(CI);
+                                    I.replaceUsesOfWith(G, CI);
                                     changed |= true;
                                 }
                             }
@@ -143,6 +160,14 @@ namespace obfusc {
                     }
                     
                 }
+            }
+        }
+        
+        for(auto ci: ci_to_inline){
+            llvm::InlineFunctionInfo IFI;
+            auto Res = llvm::InlineFunction(*ci, IFI);
+            if (!Res.isSuccess()){
+                llvm::errs() << "[!] " << Res.getFailureReason() << "\n";
             }
         }
         return changed;
@@ -206,7 +231,7 @@ namespace obfusc {
 
         // 将完整的属性列表应用到函数上
         F->setAttributes(AttrList);
-
+        F->addFnAttr(llvm::Attribute::get(mod.getContext(), llvm::Attribute::AlwaysInline));
         auto EntryBB = llvm::BasicBlock::Create(Context, "entry", F);
         auto BB_if_then = llvm::BasicBlock::Create(Context, "if.then", F);
         auto BB_while_preheader = llvm::BasicBlock::Create(Context, "while.cond.preheader", F);
@@ -236,7 +261,9 @@ namespace obfusc {
         
         for(size_t idx = 0; idx < vec_i32.size(); ++idx){
             auto t_ptr_i = IRB.CreateGEP(Int32Ty, t_ptr_base, IRB.getInt64(idx));
-            IRB.CreateStore(IRB.getInt32(vec_i32[idx]), t_ptr_i)->setAlignment(llvm::Align(4));
+            // IRB.CreateStore(IRB.getInt32(vec_i32[idx]), t_ptr_i)->setAlignment(llvm::Align(4));
+            
+            IRB.CreateStore(make_n(Context, IRB, vec_i32[idx]), t_ptr_i)->setAlignment(llvm::Align(4));
         }
         IRB.CreateStore(IRB.getInt32(1), FlagVar, /*isVolatile=*/true);
         
@@ -260,6 +287,7 @@ namespace obfusc {
         auto RetVal = IRB.CreateBitCast(StoreVar, Int8PtrTy, "retval.ptr");
         IRB.CreateRet(RetVal);
         
+        funcs.insert(F);
         return F;
     }
     llvm::Value* UcdPass::insertLazyInit(llvm::Module& mod, llvm::Function& func, llvm::GlobalVariable* g){
@@ -270,36 +298,22 @@ namespace obfusc {
                 return insertLazyInitCString(mod, func, s);
             }
         }
-        #if 0
-        std::string FlagName = make_flag_name(g);
-        std::string StoreName = make_store_name(g);
-        auto Int32Ty = llvm::Type::getInt32Ty(mod.getContext());
-        auto FlagVar = mod.getNamedGlobal(FlagName);
-        if (!FlagVar){
-            FlagVar = new llvm::GlobalVariable(mod, Int32Ty, false, llvm::GlobalValue::LinkageTypes::PrivateLinkage, llvm::ConstantInt::get(Int32Ty, 0), FlagName);
-            llvm::appendToCompilerUsed(mod, {FlagVar});
-        }
-        auto StoreVar = mod.getNamedGlobal(StoreName);
-        if (!StoreVar){
-            StoreVar = new llvm::GlobalVariable(mod, 
-                g->getValueType(),
-                false, 
-                llvm::GlobalValue::LinkageTypes::PrivateLinkage, 
-                llvm::Constant::getNullValue(g->getValueType()),
-                StoreName
-            );
-            llvm::appendToCompilerUsed(mod, {StoreVar});
-        }
-        #endif
         return nullptr;
     }
 
     bool UcdPass::fini(){
         bool changed = false;
         for(auto g: targets){
-            llvm::outs() << "[=] [ERASE] " << g->getName() << "\n";
             if (g->use_empty()){
+                llvm::outs() << "[=] [ERASE] " << g->getName() << "\n";
                 g->removeFromParent();
+                changed += true;
+            }
+        }
+        for(auto f: funcs){
+            if (f->use_empty()){
+                llvm::outs() << "[=] [ERASE] " << f->getName() << "\n";
+                f->removeFromParent();
                 changed += true;
             }
         }

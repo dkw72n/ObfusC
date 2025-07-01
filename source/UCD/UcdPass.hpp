@@ -16,5 +16,6 @@ namespace obfusc {
         llvm::Value* insertLazyInit(llvm::Module &mod, llvm::Function& func, llvm::GlobalVariable* g);
         llvm::Value* insertLazyInitCString(llvm::Module& mod, llvm::Function& func, llvm::StringRef s);
         std::set<llvm::GlobalVariable*> targets;
+        std::set<llvm::Function*> funcs;
     };
 }
