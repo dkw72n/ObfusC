@@ -68,8 +68,13 @@ namespace obfusc {
             if (is_marked) continue;
             if (is_excluded(mod, func)) continue;
             #if 1
-            for(auto pass: {"ucd"}){
-                changed |= ObfsRegistar::GetInstance().passes[pass]->obfuscate(mod, func);
+            for(auto passName: {"estr","icall"}){
+                auto pass = ObfsRegistar::GetInstance().passes[passName];
+                if (!pass){
+                    llvm::errs() << "[!] WRONG PASS NAME: " << passName << "\n";
+                    continue;
+                }
+                changed |= pass->obfuscate(mod, func);
             }
             #endif
         }

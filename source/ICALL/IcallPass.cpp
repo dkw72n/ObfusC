@@ -7,87 +7,12 @@
 #include <vector>
 #include <map>
 
-static std::random_device rd; // random device engine, usually based on /dev/random on UNIX-like systems
-// initialize Mersennes' twister using rd to generate the seed
-static std::mt19937 rng{rd()}; 
 
 // https://github.com/DreamSoule/ollvm17/blob/main/llvm-project/llvm/lib/Passes/Obfuscation/IndirectCall.cpp
 
-static constexpr uint64_t FNV_offset_basis = 0xcbf29ce484222325;
-static constexpr uint64_t FNV_prime = 0x100000001b3;
-struct CalleeMap {
-    static constexpr size_t NOT_FOUND = (size_t)-1;
-
-    std::vector<llvm::Function*> idx2func;
-    std::map<llvm::Function*, size_t> func2idx;
-    std::vector<llvm::CallInst*> callsites;
-public:
-    void insert(llvm::CallInst* CI){
-        callsites.emplace_back(CI);
-        auto f = CI->getCalledFunction();
-        
-        if (func2idx.find(f) != func2idx.end()){
-            return;
-        }
-        func2idx[f] = idx2func.size();
-        
-        idx2func.emplace_back(f);
-        
-    }
-
-    void insert(){
-
-    }
 
 
-    void shuffle(){
-        for(int i = 0; i < 10; ++i) idx2func.emplace_back(nullptr);
-        for(int i = 0; i < idx2func.size(); i++){
-            auto x = rng() % (idx2func.size() - i) + i;
-            auto y = i;
-            if (x != y){
-                std::swap(idx2func[x], idx2func[y]);
-                
-            }
-            if (idx2func[i]){
-                func2idx[idx2func[i]] = i;
-            }
-        }
-    }
-    llvm::Function* getFunc(size_t idx) const{
-        if (idx >= 0 && idx < idx2func.size()) return idx2func[idx];
-        return nullptr;
-    }
-
-    size_t getIdx(llvm::Function* f) const{
-        auto it = func2idx.find(f);
-        if (it == func2idx.end()){
-            return NOT_FOUND;
-        }
-        return it->second;
-    }
-
-    size_t size() const {
-        return idx2func.size();
-    }
-
-    bool empty() const {
-        return size() == 0;
-    }
-
-    std::string name(const std::string& prefix) const {
-        uint64_t x = FNV_offset_basis;
-        for(auto f: idx2func){
-            x ^= reinterpret_cast<uint64_t>(f);
-            x *= FNV_prime;
-        }
-        return prefix + std::to_string(x);
-    }
-
-
-};
-
-static void number_callees(llvm::Function& F, CalleeMap& M){
+static void number_callees(llvm::Function& F, obfusc::CalleeMap& M){
     for(auto& BB: F){
         for(auto& I: BB){
             if (auto CI = llvm::dyn_cast<llvm::CallInst>(&I)){
@@ -110,7 +35,7 @@ static void number_callees(llvm::Function& F, CalleeMap& M){
 }
 
 
-static llvm::GlobalVariable* make_function_list(llvm::Module& M, CalleeMap& CM){
+static llvm::GlobalVariable* make_function_list(llvm::Module& M, obfusc::CalleeMap& CM){
     std::string GVName = CM.name("icall_gv_");
     llvm::GlobalVariable *GV = M.getNamedGlobal(GVName);
     // llvm::outs() << "GVName: " << GVName << "\n";
@@ -130,7 +55,7 @@ static llvm::GlobalVariable* make_function_list(llvm::Module& M, CalleeMap& CM){
     }
     llvm::ArrayType *ATy = llvm::ArrayType::get(Int8PtrTy, CM.size());
     auto CArr = llvm::ConstantArray::get(ATy, llvm::ArrayRef<llvm::Constant *>(Elements));
-    GV = new llvm::GlobalVariable(M, ATy, false, llvm::GlobalValue::LinkageTypes::PrivateLinkage, CArr, GVName);
+    GV = new llvm::GlobalVariable(M, ATy, true, llvm::GlobalValue::LinkageTypes::PrivateLinkage, CArr, GVName);
     llvm::appendToCompilerUsed(M, {GV});
     return GV;
 }
@@ -197,35 +122,74 @@ namespace obfusc {
     IcallPass::IcallPass() {}
     IcallPass::~IcallPass() {}
 
+    void IcallPass::collectCallables(llvm::Module& mod){
+        if (touched) return;
+        touched = true;
+        dispatchTable = nullptr;
+        for(auto& F: mod){
+            for(auto& BB: F){
+                for(auto& I: BB){
+                    if (auto CI = llvm::dyn_cast<llvm::CallInst>(&I)){
+                        // llvm::outs() << "Found CallInst:" << CI << "\n";
+                        auto Callee = CI->getCalledFunction();
+                        if (!Callee) {
+                            continue;
+                        }
+
+                        if (Callee->isIntrinsic()){
+                            continue;
+                        }
+
+                        M.insert(CI);
+                        // llvm::outs() << "  calling (" << Callee << ")" << Callee->getName() << "\n";
+                    }
+                }
+            }
+        }
+        M.shuffle();
+        if (M.empty())
+            return;
+        llvm::outs() << "[MOD] [" << mod.getName() << "] TOTAL " << M.size() << "Callees\n";
+        dispatchTable = make_function_list(mod, M);
+    }
     bool IcallPass::obfuscate(llvm::Module& mod, llvm::Function& func){
-        CalleeMap CM;
+        collectCallables(mod);
+        // CalleeMap CM;
         // llvm::outs() << "[-] in icall\n";
         auto& ctx = func.getContext();
-        number_callees(func, CM);
-        if (CM.empty())
-            return false;
-        llvm::GlobalVariable* ptrs = make_function_list(mod, CM);
+        const auto &DL = mod.getDataLayout();
         auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
         auto Int32Ty = llvm::Type::getInt32Ty(mod.getContext());
         auto Int64Ty = llvm::Type::getInt64Ty(mod.getContext());
-        for(auto CI: CM.callsites){
+        auto IntPtrTy = DL.getIntPtrType(ctx); 
+        for(auto CI: M.callsites){
+            if (CI->getParent()->getParent() != &func) continue;
             llvm::IRBuilder<> IRB(CI);
             auto AOR = IRB.CreatePtrToInt(
                 IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
                 Int32Ty
             );
-            int32_t Shift = rng() % 2048 + 2048;
+            int32_t Shift = rng() % M.size();
             CI->setCalledOperand(IRB.CreateBitCast(
                 IRB.CreateLoad(
                     Int8PtrTy,
-                    IRB.CreateGEP(
-                        Int8PtrTy,
-                        IRB.CreateGEP(
-                            Int8PtrTy,
-                            ptrs,
-                            llvm::ConstantInt::get(Int32Ty, Shift)
+                    IRB.CreateIntToPtr(
+                        IRB.CreateAdd(
+                            IRB.CreatePtrToInt(
+                                llvm::ConstantExpr::getGetElementPtr(
+                                    Int8PtrTy,
+                                    dispatchTable,
+                                    llvm::ConstantInt::get(Int32Ty, Shift)
+                                ),
+                                IntPtrTy
+                            ),
+                            IRB.CreateSExt(
+                                MakeN(mod.getContext(), IRB, AOR, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8)),
+                                IntPtrTy
+                            )
+                            // llvm::ConstantInt::get(IntPtrTy, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8))
                         ),
-                        MakeN(mod.getContext(), IRB, AOR, -Shift + CM.getIdx(CI->getCalledFunction()))
+                        Int8PtrTy
                     )
                 ),
                 CI->getFunctionType()->getPointerTo()
