@@ -27,10 +27,17 @@ namespace obfusc {
             l-=2;
         }
         for (const auto word : std::views::split(std::string_view(p, l), delim)){
-            // llvm::outs() << word.data() << "\n";
+            auto s = word.size();
+            // 删除串尾 null
+            while (s > 0 && word.data()[s - 1] == '\0'){
+                s--;
+            }
+            auto pass_name = llvm::StringRef(word.data(), s);
             // auto pass = FuncAttributeStore::GetInstance().GetAttrPass(llvm::StringRef(word.data(), word.size()));
-            auto pass = ObfsRegistar::GetInstance().passes[llvm::StringRef(word.data(), word.size()).str()];
+            auto pass = ObfsRegistar::GetInstance().passes[pass_name.str()];
+            // llvm::outs() << llvm::StringRef(word.data(), word.size()) << ": " << pass << "\n";
             if (!pass){
+                // llvm::outs() << "[OBFS]" << llvm::StringRef(word.data(), s) << " NOT FOUND " << "\n";
                 return {};
             }
             vec.emplace_back(pass);
@@ -50,22 +57,29 @@ namespace obfusc {
                         if (res){
                             is_marked = true;
                             for(auto pass: *res){
-                                llvm::outs() << "[-] running " << pass << "\n";
+                                // llvm::outs() << "[-] running " << pass << "\n";
                                 changed |= pass->obfuscate(mod, func); //Call obfuscate func
                             }
                         }
                     }
                 }
             }
+            // llvm::outs() << "FUNC " << func.getName() << "  MARK " << is_marked << "\n";
             if (is_marked) continue;
             if (is_excluded(mod, func)) continue;
             #if 1
-            for(auto pass: {"estr"}){
+            for(auto pass: {"ucd"}){
                 changed |= ObfsRegistar::GetInstance().passes[pass]->obfuscate(mod, func);
             }
             #endif
         }
 
+        
+        for(auto p: ObfsRegistar::GetInstance().passes){
+            if (p.second){
+                p.second->fini();
+            }
+        }
         if (changed) {
             return llvm::PreservedAnalyses::none();
         }

@@ -6,6 +6,8 @@ IObfuscationPass::IObfuscationPass() {
     m_randGen64.seed(rd()); //Seed Mersenne Twister random generator  
 }
 
+bool IObfuscationPass::init(){ return false; }
+bool IObfuscationPass::fini(){ return false; }
 /* Get a random number that is half the types bit length (e.g. 64 bit for 128 bit values) */
 uint64_t IObfuscationPass::GetRandomNumber(llvm::Type* type) {
     uint64_t modNum = UCHAR_MAX; //UCHAR_MAX covers 8-bit and 16-bit

@@ -8,6 +8,8 @@
 class IObfuscationPass {
 public:
     virtual bool obfuscate(llvm::Module& mod, llvm::Function& func) = 0;
+    virtual bool init();
+    virtual bool fini();
 protected:
     IObfuscationPass();
     virtual ~IObfuscationPass() {}

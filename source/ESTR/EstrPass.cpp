@@ -42,7 +42,7 @@ static bool checkUsers(llvm::GlobalVariable& G){
 }
 
 struct TaintAnalysis{
-    
+    static constexpr bool verbose = false;
     TaintAnalysis(llvm::Function& Fun, llvm::Value* V): func(Fun){
         tainted.insert(V);
     }
@@ -51,25 +51,33 @@ struct TaintAnalysis{
         while(_run());
         for(auto& a: func.args()){
             if (tainted.contains(&a)){
-                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED ARGS:"; a.dump();
+                if constexpr (verbose){
+                    llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED ARGS:"; a.dump();
+                }
                 return false;
             }
         }
         for(auto r: retval){
             if (tainted.contains(r)){
-                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED RETS:"; r->dump();
+                if constexpr (verbose){
+                    llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED RETS:"; r->dump();
+                }
                 return false;
             }
         }
         for(auto c: cmpval){
             if (tainted.contains(c)){
-                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED CMP:"; c->dump();
+                if constexpr (verbose){
+                    llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED CMP:"; c->dump();
+                }
                 return false;
             }
         }
         for(auto t: tailcall){
             if (tainted.contains(t)){
-                llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED TAILCALL:"; t->dump();
+                if constexpr (verbose){
+                    llvm::outs() << "[-] [" << func.getName() << "]  FOUND TAINTED TAILCALL:"; t->dump();
+                }
                 return false;
             }
         }
@@ -87,12 +95,12 @@ private:
                     if (tainted.contains(src)){
                         auto res = tainted.insert(dst);
                         updated |= res.second;
-                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                     }
                     if (tainted.contains(dst)){
                         auto res = tainted.insert(src);
                         updated |= res.second;
-                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                     }
                     continue;
                 }
@@ -102,7 +110,7 @@ private:
                     if (tainted.contains(tval) || tainted.contains(fval)){
                         auto res = tainted.insert(D);
                         updated |= res.second;
-                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                     }
                     continue;
                 }
@@ -111,12 +119,12 @@ private:
                     if (tainted.contains(ptr)){
                         auto res = tainted.insert(D);
                         updated |= res.second;
-                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                     }
                     if (tainted.contains(D)){
                         auto res = tainted.insert(ptr);
                         updated |= res.second;
-                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                     }
                     continue;
                 }
@@ -125,12 +133,12 @@ private:
                     if (tainted.contains(src)){
                         auto res = tainted.insert(D);
                         updated |= res.second;
-                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                     }
                     if (tainted.contains(D)){
                         auto res = tainted.insert(src);
                         updated |= res.second;
-                        if (res.second){llvm::outs() << "\t # "; D->dump();}
+                        if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                     }
                     continue;
                 }
@@ -147,10 +155,21 @@ private:
                         if (arg_tainted){
                             auto res = tainted.insert(D);
                             updated |= res.second;
-                            if (res.second){llvm::outs() << "\t # "; D->dump();}
+                            if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
                         }
                     }
                     
+                    continue;
+                }
+                if (auto D = llvm::dyn_cast<llvm::PHINode>(&I)){
+                    for (auto &v: D->incoming_values()){
+                        if (tainted.contains(v.get())){
+                            auto res = tainted.insert(D);
+                            updated |= res.second;
+                            if (res.second){if constexpr (verbose){llvm::outs() << "\t # "; D->dump();}}
+                            break;
+                        }
+                    }
                     continue;
                 }
                 if (auto D = llvm::dyn_cast<llvm::ReturnInst>(&I)){
@@ -287,7 +306,7 @@ namespace obfusc {
                             // llvm::outs() << "  [M] "; G->dump();
                             G->removeDeadConstantUsers();
                             if (G->use_empty()){
-                                // llvm::outs() << "  OK TO REMOVE\n";
+                                llvm::outs() << "[ERASE]" << G->getName() << "\n";
                                 // G->dropAllReferences();
                                 G->eraseFromParent();
                             }
