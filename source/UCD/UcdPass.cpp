@@ -69,6 +69,8 @@ static std::vector<int32_t> shortStringToI32List(llvm::StringRef& s){
 }
 
 namespace obfusc {
+    static constexpr bool CFG_FORCE_INLINE = false;
+    static constexpr bool CFG_OBFUS_INIT = false;
     static constexpr bool log_level = 2;
     UcdPass::UcdPass():touched(false) {}
     UcdPass::~UcdPass() {}
@@ -98,6 +100,10 @@ namespace obfusc {
             for(auto* user: G.users()){
                 if (auto I = llvm::dyn_cast<llvm::Instruction>(user)){
                     if constexpr(log_level >=2 ) {llvm::outs() << "[.] Inst:" << I->getOpcodeName() << "\n";}
+                    if (I->getOpcode() == llvm::Instruction::PHI){
+                        // 注意要跟指令遍历流程保持一致
+                        // accepted = false; // FIXME:
+                    }
                 } else if(auto CE = llvm::dyn_cast<llvm::ConstantExpr>(user)){
                     if constexpr(log_level >=2 ) {llvm::outs() << "[.] CExp:" << CE->getOpcodeName() << "\n";}
                     accepted = false; // FIXME:
@@ -123,7 +129,7 @@ namespace obfusc {
         for(auto& BB: func){
             for(auto& I: BB){
                 for(auto& Op: I.operands()){
-                    if (I.getOpcode() == llvm::Instruction::PHI) continue;
+                    // if (I.getOpcode() == llvm::Instruction::PHI) continue;
                     if (auto G  = llvm::dyn_cast<llvm::GlobalVariable>(Op->stripPointerCasts())){
                         
                         llvm::outs() << "found g: " << G->getName() << ", "; Op->getType()->dump();
@@ -134,8 +140,7 @@ namespace obfusc {
                             llvm::outs() << "[-] [" << func.getName() << "] MODIFY " << G->getName() << " IN "; I.dump();
                             if (auto v = insertLazyInit(mod, func, G)){
                                 if (auto F = llvm::dyn_cast<llvm::Function>(v)){
-                                    llvm::IRBuilder<> IRB(&I);
-                                    
+                                    llvm::IRBuilder<> IRB(func.getEntryBlock().getFirstNonPHIOrDbgOrLifetime());
                                     auto CI = IRB.CreateCall(F->getFunctionType(), F, {});
                                     
                                     ci_to_inline.insert(CI);
@@ -157,12 +162,13 @@ namespace obfusc {
                 }
             }
         }
-        
-        for(auto ci: ci_to_inline){
-            llvm::InlineFunctionInfo IFI;
-            auto Res = llvm::InlineFunction(*ci, IFI);
-            if (!Res.isSuccess()){
-                llvm::errs() << "[!] " << Res.getFailureReason() << "\n";
+        if constexpr (CFG_FORCE_INLINE){
+            for(auto ci: ci_to_inline){
+                llvm::InlineFunctionInfo IFI;
+                auto Res = llvm::InlineFunction(*ci, IFI);
+                if (!Res.isSuccess()){
+                    llvm::errs() << "[!] " << Res.getFailureReason() << "\n";
+                }
             }
         }
         return changed;
@@ -256,9 +262,13 @@ namespace obfusc {
         
         for(size_t idx = 0; idx < vec_i32.size(); ++idx){
             auto t_ptr_i = IRB.CreateGEP(Int32Ty, t_ptr_base, IRB.getInt64(idx));
-            // IRB.CreateStore(IRB.getInt32(vec_i32[idx]), t_ptr_i)->setAlignment(llvm::Align(4));
+            if constexpr (CFG_OBFUS_INIT){
+                IRB.CreateStore(make_n(Context, IRB, vec_i32[idx]), t_ptr_i)->setAlignment(llvm::Align(4));
+            } else {
+                IRB.CreateStore(IRB.getInt32(vec_i32[idx]), t_ptr_i)->setAlignment(llvm::Align(4));
+            }
             
-            IRB.CreateStore(make_n(Context, IRB, vec_i32[idx]), t_ptr_i)->setAlignment(llvm::Align(4));
+            
         }
         IRB.CreateStore(IRB.getInt32(1), FlagVar, /*isVolatile=*/true);
         
