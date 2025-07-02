@@ -69,9 +69,9 @@ static std::vector<int32_t> shortStringToI32List(llvm::StringRef& s){
 }
 
 namespace obfusc {
-    static constexpr bool CFG_FORCE_INLINE = false;
-    static constexpr bool CFG_OBFUS_INIT = false;
-    static constexpr bool log_level = 2;
+    static constexpr bool CFG_FORCE_INLINE = true;
+    static constexpr bool CFG_OBFUS_INIT = true;
+    static constexpr bool log_level = 0;
     UcdPass::UcdPass():touched(false) {}
     UcdPass::~UcdPass() {}
 
@@ -117,7 +117,9 @@ namespace obfusc {
                 }
             }
             if (accepted){
-                llvm::outs() << "INSERT " <<  G.getName() << "\n";
+                if constexpr(log_level >= 1 ) {
+                    llvm::outs() << "[-] INSERT " <<  G.getName() << "\n";
+                }
                 targets.insert(&G);
             }
         }
@@ -125,25 +127,34 @@ namespace obfusc {
     bool UcdPass::obfuscate(llvm::Module& mod, llvm::Function& func){
         collectRemovables(mod);
         std::set<llvm::CallInst*> ci_to_inline;
+        std::map<llvm::Function*, llvm::CallInst*> func_to_ci;
         bool changed = false;
         for(auto& BB: func){
             for(auto& I: BB){
                 for(auto& Op: I.operands()){
                     // if (I.getOpcode() == llvm::Instruction::PHI) continue;
                     if (auto G  = llvm::dyn_cast<llvm::GlobalVariable>(Op->stripPointerCasts())){
-                        
-                        llvm::outs() << "found g: " << G->getName() << ", "; Op->getType()->dump();
-                        G->getValueType()->dump();
+                        if constexpr(log_level >=2 ) {
+                            llvm::outs() << "[.] FOUND g: " << G->getName() << ", "; Op->getType()->dump();
+                            G->getValueType()->dump();
+                        }
                         if (targets.contains(G)){
                             // 1. insert lazy init code in beginning
                             // 2. replace op with inited ptr
-                            llvm::outs() << "[-] [" << func.getName() << "] MODIFY " << G->getName() << " IN "; I.dump();
+                            if constexpr(log_level >= 1) {
+                                llvm::outs() << "[-] [" << func.getName() << "] MODIFY " << G->getName() << " IN "; I.dump();
+                            }
                             if (auto v = insertLazyInit(mod, func, G)){
                                 if (auto F = llvm::dyn_cast<llvm::Function>(v)){
-                                    llvm::IRBuilder<> IRB(func.getEntryBlock().getFirstNonPHIOrDbgOrLifetime());
-                                    auto CI = IRB.CreateCall(F->getFunctionType(), F, {});
-                                    
-                                    ci_to_inline.insert(CI);
+                                    llvm::CallInst* CI;
+                                    if (func_to_ci.find(F) != func_to_ci.end()){
+                                        CI = func_to_ci[F];
+                                    } else {
+                                        llvm::IRBuilder<> IRB(func.getEntryBlock().getFirstNonPHIOrDbgOrLifetime());
+                                        CI = IRB.CreateCall(F->getFunctionType(), F, {});
+                                        func_to_ci.emplace(F, CI);
+                                        ci_to_inline.insert(CI);
+                                    }
                                     I.replaceUsesOfWith(G, CI);
                                     changed |= true;
                                 }
@@ -308,15 +319,16 @@ namespace obfusc {
 
     bool UcdPass::fini(){
         bool changed = false;
-        #if 0
         for(auto g: targets){
+            g->removeDeadConstantUsers();
             if (g->use_empty()){
                 llvm::outs() << "[=] [ERASE] " << g->getName() << "\n";
-                g->removeFromParent();
+                // g->removeFromParent();
+                g->setInitializer(llvm::Constant::getNullValue(g->getValueType()));
+                g->setConstant(false);
                 changed += true;
             }
         }
-        #endif
         for(auto f: funcs){
             if (f->use_empty()){
                 llvm::outs() << "[=] [ERASE] " << f->getName() << "\n";

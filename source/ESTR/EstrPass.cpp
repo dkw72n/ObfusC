@@ -269,7 +269,7 @@ namespace obfusc {
                             //if (llvm::dyn_cast<llvm::SelectInst>(&I) || llvm::dyn_cast<llvm::StoreInst>(&I)){
                             //    llvm::outs() << "[WARN][" << mod.getName() << "][" << func.getName(); I.dump();G->dump();
                             //}
-                            llvm::IRBuilder<> IRB(&I);
+                            llvm::IRBuilder<> IRB(func.getEntryBlock().getFirstNonPHIOrDbgOrLifetime());
                             auto AOR = IRB.CreatePtrToInt(
                                 IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
                                 Int32Ty
@@ -277,7 +277,7 @@ namespace obfusc {
                             auto V = cstrings[G];
                             auto SS = IRB.CreateAlloca(Int32Ty, llvm::ConstantInt::get(Int32Ty, V.size()));
                             for(size_t i = 0; i < V.size(); ++i){
-                                switch(rng() % 3 + 3){
+                                switch(rng() % 3){
                                     case 0:
                                         IRB.CreateStore(
                                             MakeN(Context, IRB, AOR, V[i]), 
@@ -303,9 +303,11 @@ namespace obfusc {
                             // llvm::outs() << "  [M] "; G->dump();
                             G->removeDeadConstantUsers();
                             if (G->use_empty()){
-                                llvm::outs() << "[ERASE]" << G->getName() << "\n";
+                                llvm::outs() << "[=] [ERASE] " << G->getName() << "\n";
                                 // G->dropAllReferences();
-                                G->eraseFromParent();
+                                // G->eraseFromParent();
+                                G->setInitializer(llvm::Constant::getNullValue(G->getValueType()));
+                                G->setConstant(false);
                             }
                             changed |= true;
                         } else {

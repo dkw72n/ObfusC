@@ -102,9 +102,20 @@ llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Val
     if (N < 0) return IRB.CreateNeg(
         MakeN(Context, IRB, Value, -N)
     );
+    if (N < 0x10){
+        switch(rng() % 3){
+            case 0:
+                return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N/2), MakeN(Context, IRB, Value, N - N/2));
+            case 1:
+                return IRB.CreateOr(llvm::ConstantInt::get(Int32Ty, N & 0x3), MakeN(Context, IRB, Value, N & 0xc));
+            default:
+                return IRB.CreateXor(llvm::ConstantInt::get(Int32Ty, N^6), MakeN(Context, IRB, Value, 6));
+        }
+    }
     auto S = N % 2 ? MakeOne(Context, IRB, Value): MakeZero(Context, IRB, Value);
-    auto X = MakeN(Context, IRB, Value, N / 3);
-    return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N%3), IRB.CreateMul(llvm::ConstantInt::get(Int32Ty, 3), X));
+    auto D = rng() % 11 + 2;
+    auto X = MakeN(Context, IRB, Value, N / D);
+    return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N%D), IRB.CreateMul(X, llvm::ConstantInt::get(Int32Ty, D)));
 
     //auto Y = IRB.CreateAdd(X, X);
     //if (N % 2){
