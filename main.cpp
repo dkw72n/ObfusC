@@ -5,6 +5,7 @@
 #include "common.hpp"
 #include "FuncAnnotationsParser.hpp"
 #include "ObfuscationPassManager.hpp"
+#include <llvm/MC/TargetRegistry.h>
 
 namespace obfusc {
     llvm::PassPluginLibraryInfo getObfuscPluginInfo() {
@@ -28,5 +29,10 @@ namespace obfusc {
 
 // Dynamic Library Entrypoint
 extern "C" LLVM_ATTRIBUTE_WEAK llvm::PassPluginLibraryInfo llvmGetPassPluginInfo() {
+    /*
+    for (auto t : llvm::TargetRegistry::targets()) {
+        llvm::errs() << "+ " << t.getName() << "\n";
+    }
+    */
     return obfusc::getObfuscPluginInfo();
 }
