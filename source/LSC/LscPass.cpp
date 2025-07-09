@@ -9,6 +9,7 @@ static std::string make_ptr_string(void* ptr) {
 }
 
 namespace obfusc {
+	static constexpr bool TRACE_CALL = false;
     LscPass::LscPass() {}
     LscPass::~LscPass() {}
 
@@ -115,13 +116,14 @@ namespace obfusc {
 			if (F->doesNotReturn()) return;
 		}
 		else {
-			llvm::outs() << "[!] indirect call\n";
+			// llvm::outs() << "[!] indirect call\n";
 			Callee = I->getCalledOperand();
 		}
-
-		llvm::outs() << "[-]: " << *I << "\n";
-		llvm::outs() << "  + " << *Callee->getType() << "\n";
-		llvm::outs() << "  + " << *FT << "\n";
+		if constexpr (TRACE_CALL){
+			llvm::outs() << "[-]: " << *I << "\n";
+			llvm::outs() << "  + " << *Callee->getType() << "\n";
+			llvm::outs() << "  + " << *FT << "\n";
+		}
 		std::string name = ".lsc_call_";
 
 		name += make_ptr_string(RT);
