@@ -7,6 +7,10 @@
 #include <llvm/Transforms/Utils/StripNonLineTableDebugInfo.h>
 #include <llvm/IR/DebugInfo.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Transforms/IPO/ExtractGV.h>
+#include <llvm/Transforms/IPO/StripSymbols.h>
+#include <llvm/Transforms/IPO/StripDeadPrototypes.h>
+#include <llvm/IRPrinter/IRPrintingPasses.h>
 #include <format>
 
 #define DEBUG_TYPE "virtpass"
@@ -24,7 +28,7 @@ namespace obfusc {
     bool VirtPass::obfuscate(llvm::Module& mod, llvm::Function& func){
         llvm::outs() << "[-] [VIRT]" << func.getName() << "\n";
 
-        std::string Triple = "wasm32-unknown-unknown";
+        std::string Triple = "wasm64-unknown-emscripten";
         std::string Error;
         const llvm::Target *TheTarget = llvm::TargetRegistry::lookupTarget(Triple, Error);
 
@@ -84,19 +88,21 @@ namespace obfusc {
         auto copy = llvm::CloneModule(mod);
         llvm::StripDebugInfo(*copy);
         copy->setTargetTriple(vm_triple);
-		copy->setDataLayout("e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128");
+		copy->setDataLayout("e-m:e-p:64:64-p10:8:8-p20:8:8-i64:64-f128:64-n32:64-S128-ni:1:10:20");
 #endif
+
+        std::vector<llvm::GlobalValue *> Gvs;
         // 删除 attribute
         for(auto& F: *copy){
             F.setComdat(nullptr);
             F.removeFnAttr("target-cpu");
             F.removeFnAttr("target-features");
+            llvm::outs() << "[COPY] F:" << F.getName() << ", " << func.getName() << "\n";
+            if (F.getName() == func.getName()){
+                Gvs.push_back(&F);
+            }
         }
-
-        copy->dump();
         
-        llvm::verifyModule(*copy, &llvm::errs());
-
         
         // --- 3. 设置输出流 ---
         // 我们将输出捕获到一个字符串中
@@ -105,31 +111,82 @@ namespace obfusc {
 
         // --- 4. 创建并配置代码生成 Pass 管理器 ---
         // 注意: addPassesToEmitFile 使用的是 legacy PassManager
-        llvm::legacy::PassManager PM;
+
+        {
+            llvm::LoopAnalysisManager LAM;
+            llvm::FunctionAnalysisManager FAM;
+            llvm::CGSCCAnalysisManager CGAM;
+            llvm::ModuleAnalysisManager MAM;
+
+            llvm::PassBuilder PB;
+            PB.registerModuleAnalyses(MAM);
+            PB.registerCGSCCAnalyses(CGAM);
+            PB.registerFunctionAnalyses(FAM);
+            PB.registerLoopAnalyses(LAM);
+            PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+            llvm::ModulePassManager PM;
+            PM.addPass(llvm::ExtractGVPass(Gvs, false));
+                
+            PM.run(*copy, MAM);
+        }
         
+        
+        {
+            llvm::LoopAnalysisManager LAM;
+            llvm::FunctionAnalysisManager FAM;
+            llvm::CGSCCAnalysisManager CGAM;
+            llvm::ModuleAnalysisManager MAM;
+
+            llvm::PassBuilder PB;
+
+            PB.registerModuleAnalyses(MAM);
+            PB.registerCGSCCAnalyses(CGAM);
+            PB.registerFunctionAnalyses(FAM);
+            PB.registerLoopAnalyses(LAM);
+            PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+            llvm::ModulePassManager PM;
+            PM.addPass(llvm::StripDeadDebugInfoPass());
+            PM.addPass(llvm::StripDeadPrototypesPass());
+
+            PM.addPass(llvm::PrintModulePass(OS, ""));
+            PM.run(*copy, MAM);
+        }
+
+        llvm::verifyModule(*copy, &llvm::errs());
+        
+        copy->dump();
+        // llvm::errs() << CodeString;
+        #if 1
         // 选择输出文件类型:
         // CGFT_AssemblyFile -> 文本汇编 (.s / .wat)
         // CGFT_ObjectFile   -> 二进制目标文件 (.o / .wasm)
-        auto FileType = llvm::CodeGenFileType::ObjectFile;
-
-        if (TheTargetMachine->addPassesToEmitFile(PM, OS, nullptr, FileType)) {
-            llvm::errs() << "TargetMachine can't emit a file of this type!\n";
-            return false;
+        {
+            auto FileType = llvm::CodeGenFileType::AssemblyFile;
+            llvm::legacy::PassManager PM;
+            if (TheTargetMachine->addPassesToEmitFile(PM, OS, nullptr, FileType)) {
+                llvm::errs() << "TargetMachine can't emit a file of this type!\n";
+                return false;
+            }
+            
+            // --- 5. 运行代码生成 ---
+            llvm::errs() << "--- Generating WASM Assembly for Module containing " << func.getName() << " ---\n";
+            PM.run(*copy);
+            llvm::errs() << "--- Code Generation Complete ---\n\n";
+            if (FileType == llvm::CodeGenFileType::ObjectFile){
+                for(auto i = 0; i < CodeString.size(); ++i){
+                    llvm::errs() << std::format("{:02x}", CodeString[i]) << " ";
+                    if (!((i + 1)%32)) llvm::errs() <<"\n";
+                } 
+            }
+            else {
+                llvm::errs() << CodeString;
+            }
         }
-        
-        // --- 5. 运行代码生成 ---
-        llvm::errs() << "--- Generating WASM Assembly for Module containing " << func.getName() << " ---\n";
-        PM.run(*copy);
-        llvm::errs() << "--- Code Generation Complete ---\n\n";
-        if (FileType == llvm::CodeGenFileType::ObjectFile){
-            for(auto i = 0; i < CodeString.size(); ++i){
-                llvm::errs() << std::format("{:02x}", CodeString[i]) << " ";
-                if (!((i + 1)%32)) llvm::errs() <<"\n";
-            } 
-        }
-        else {
-            llvm::errs() << CodeString;
-        }
+        #endif
+        // 生成 wrapper, 改写 内存读写, 函数调用
+        // 
         return false;
     }
 }
