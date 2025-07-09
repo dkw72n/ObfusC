@@ -15,5 +15,6 @@ namespace obfusc {
         void runOnStore(llvm::Module& mod, llvm::StoreInst* I);
         void runOnCall(llvm::Module& mod, llvm::CallInst* I);
         std::set<llvm::Instruction*> _insts_to_remove;
+        llvm::InlineAsm* _fake_ret_aarch64;
     };
 }

@@ -14,6 +14,13 @@ namespace obfusc {
     LscPass::~LscPass() {}
 
     bool LscPass::obfuscate(llvm::Module& mod, llvm::Function& func) {
+		if (!_fake_ret_aarch64){
+			/*
+			对抗反编译器 https://github.com/AppleReer/Anti-Disassembly-On-Arm64
+			*/
+			auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), {}, false);
+			_fake_ret_aarch64 = llvm::InlineAsm::get(VoidFT, "adr x8,#0xc\nmov x30, x8\nret\n", "~{x8},~{lr}", true, false);
+		}
         if (func.getName().starts_with(".lsc_")) return false;
         int n = 0;
         for (auto& BB : func) {
@@ -58,6 +65,7 @@ namespace obfusc {
 		auto f = M.getFunction(name);
 		if (!f) {
 			auto& Context = M.getContext();
+			auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(Context), {}, false);
 			auto FuncType = llvm::FunctionType::get(I->getAccessType(), { I->getOperand(0)->getType() }, false);
 			auto F = llvm::Function::Create(FuncType, llvm::GlobalValue::PrivateLinkage, name, M);
 			F->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Local);
@@ -97,6 +105,10 @@ namespace obfusc {
 			f = F;
 		}
 		llvm::IRBuilder<> IRB(I);
+		if (rng() % 5 <= 1){
+			if (_fake_ret_aarch64)
+				IRB.CreateCall(_fake_ret_aarch64, {});
+		}
 		IRB.CreateCall(f, { I->getPointerOperand(), I->getValueOperand()});
 		// I->eraseFromParent();
 		_insts_to_remove.insert(I);
