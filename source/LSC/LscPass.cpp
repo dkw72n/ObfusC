@@ -14,21 +14,6 @@ namespace obfusc {
     LscPass::~LscPass() {}
 
     bool LscPass::obfuscate(llvm::Module& mod, llvm::Function& func) {
-		if (!_fake_ret_aarch64){
-			/*
-			对抗反编译器 https://github.com/AppleReer/Anti-Disassembly-On-Arm64
-			*/
-			auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), {}, false);
-			_fake_ret_aarch64 = llvm::InlineAsm::get(VoidFT, "adr x8,#0xc\nmov x30, x8\nret\n", "~{x8},~{lr}", true, false);
-			_fake_ret_amd64 = llvm::InlineAsm::get(VoidFT, "lea 2(%rip), %rax\npush %rax\nret\n", "~{rax}", true, false);
-			llvm::outs() << "[-] target: " << mod.getContext().getDefaultTargetCPU() << "\n";
-			if (mod.getContext().getDefaultTargetCPU() == "x86-64"){
-				_fake_ret = _fake_ret_amd64;
-			}
-			else {
-				_fake_ret = _fake_ret_aarch64;
-			}
-		}
         if (func.getName().starts_with(".lsc_")) return false;
         int n = 0;
         for (auto& BB : func) {
@@ -113,12 +98,6 @@ namespace obfusc {
 			f = F;
 		}
 		llvm::IRBuilder<> IRB(I);
-		#if 0
-		if (rng() % 5 <= 1){
-			if (_fake_ret)
-				IRB.CreateCall(_fake_ret, {});
-		}
-		#endif
 		IRB.CreateCall(f, { I->getPointerOperand(), I->getValueOperand()});
 		// I->eraseFromParent();
 		_insts_to_remove.insert(I);
