@@ -111,7 +111,9 @@ namespace obfusc {
 		if (FT->isVarArg()) return;
 		auto CC = I->getCallingConv();
 		if (CC != llvm::CallingConv::C){
-			llvm::outs() << "skip callee (unsupported callconv): " << F->getName() << "\n";
+			if (F){
+				llvm::outs() << "skip callee (unsupported callconv): " << F->getName() << "\n";
+			}
 			return;
 		}
 		if (F) {
@@ -159,12 +161,13 @@ namespace obfusc {
 			{
 				argvs.push_back(WF->getArg(i));
 			}
+			auto CI = IRB.CreateCall(FT, WF->getArg(0), argvs);
+			CI->setTailCall(true);
 			if (FT->getReturnType()->isVoidTy()) {
-				IRB.CreateCall(FT, WF->getArg(0), argvs);
 				IRB.CreateRetVoid();
 			}
 			else {
-				IRB.CreateRet(IRB.CreateCall(FT, WF->getArg(0), argvs));
+				IRB.CreateRet(CI);
 			}
 			WF->addFnAttr(llvm::Attribute::get(Context, llvm::Attribute::NoInline));
 			f = WF;

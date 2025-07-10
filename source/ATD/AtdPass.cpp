@@ -32,16 +32,18 @@ namespace obfusc {
     bool AtdPass::obfuscate(llvm::Module& mod, llvm::Function& func){
         if (!M) init(mod);
         if (!_fake_ret) return false; /* not supported */
+        if (func.getName().starts_with(".")) return false;
         bool changed = false;
         for (auto& BB: func){
             auto It = BB.getFirstNonPHIOrDbgOrLifetime();
             if (!It) continue;
-            if (rng() % 5 <= 1){
+            
+            if (rng() % 15 <= 1){
                 llvm::IRBuilder<> IRB(It);
                 IRB.CreateCall(_fake_ret->getFunctionType(), _fake_ret);
                 changed |= true;
-                llvm::outs() << "[-] FUN " << func.getName() << "\n";
-                break;
+                // llvm::outs() << "[-] FUN " << func.getName() << "\n";
+                // break;
             }
             
         }
