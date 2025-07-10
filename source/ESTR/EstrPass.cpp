@@ -7,7 +7,7 @@
 // https://github.com/DreamSoule/ollvm17/blob/main/llvm-project/llvm/lib/Passes/Obfuscation/IndirectBranch.cpp
 
 
-static OBfsRegister<obfusc::EstrPass> sRegEstr("estr");
+// static OBfsRegister<obfusc::EstrPass> sRegEstr("estr");
 
 llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
 

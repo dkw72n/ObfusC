@@ -2,7 +2,7 @@
 #include <cstdlib>
 #include <limits>
 
-static OBfsRegister<obfusc::MbaPass> sRegIcall("mba");
+// static OBfsRegister<obfusc::MbaPass> sRegIcall("mba");
 namespace obfusc {
     MbaPass::MbaPass() {}
     MbaPass::~MbaPass() {}

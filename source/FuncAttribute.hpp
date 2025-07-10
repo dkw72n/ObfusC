@@ -60,11 +60,20 @@ namespace obfusc {
         }
     };
 
+    constexpr char lower(char c){
+        if (c >= 'A' && c <= 'Z') return c - 'A' + 'a';
+        return c;
+    }
+    template<char... C>
+    struct Lower {
+        static constexpr char value[] = {lower(C)..., '\0'};
+    };
     //name ## Pass class (e.g. MbaPass) needs to be included before using this macro.
     #define NEW_FUNC_ATTR(name, ...) \
         static_assert(std::is_convertible<name ## Pass*, IObfuscationPass*>::value, #name "Pass must inherit IObfuscationPass as public"); \
         class name ## Attribute : public FuncAttribute<name ## Pass, __VA_ARGS__> { }; \
-        static clang::ParsedAttrInfoRegistry::Add<name ## Attribute> name ## Clang("obfusc_" #name, "") 
+        static clang::ParsedAttrInfoRegistry::Add<name ## Attribute> name ## Clang("obfusc_" #name, ""); \
+        static OBfsRegister<obfusc::name ## Pass> sReg ## name(Lower<__VA_ARGS__>::value)
 
 
 }

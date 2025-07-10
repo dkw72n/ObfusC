@@ -8,7 +8,7 @@
 // https://github.com/DreamSoule/ollvm17/blob/main/llvm-project/llvm/lib/Passes/Obfuscation/IndirectBranch.cpp
 
 
-static OBfsRegister<obfusc::IbrPass> sRegIbr("ibr");
+// static OBfsRegister<obfusc::IbrPass> sRegIbr("ibr");
 
 namespace obfusc {
     IbrPass::IbrPass() {}

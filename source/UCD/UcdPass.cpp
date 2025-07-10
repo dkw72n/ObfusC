@@ -3,7 +3,7 @@
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 
-static OBfsRegister<obfusc::UcdPass> sRegUcd("ucd");
+// static OBfsRegister<obfusc::UcdPass> sRegUcd("ucd");
 
 llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
 

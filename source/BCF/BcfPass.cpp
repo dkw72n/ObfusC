@@ -10,7 +10,7 @@
 llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
 llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
 
-static OBfsRegister<obfusc::BcfPass> sRegIcall("bcf");
+// static OBfsRegister<obfusc::BcfPass> sRegIcall("bcf");
 namespace obfusc {
     BcfPass::BcfPass() {}
     BcfPass::~BcfPass() {}

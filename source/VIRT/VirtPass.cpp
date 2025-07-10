@@ -15,7 +15,7 @@
 
 #define DEBUG_TYPE "virtpass"
 
-static OBfsRegister<obfusc::VirtPass> sRegVirt("virt");
+// static OBfsRegister<obfusc::VirtPass> sRegVirt("virt");
 
 static const char* vm_target = "wasm64";
 static const char* vm_triple = "wasm64-unknown-emscripten";

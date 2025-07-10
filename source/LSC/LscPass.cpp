@@ -1,6 +1,6 @@
 #include "LscPass.hpp"
 
-static OBfsRegister<obfusc::LscPass> sRegIcall("lsc");
+// static OBfsRegister<obfusc::LscPass> sRegIcall("lsc");
 
 static std::string make_ptr_string(void* ptr) {
 	char t[64];

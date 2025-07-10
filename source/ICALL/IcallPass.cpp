@@ -127,7 +127,7 @@ llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Val
 #endif
 }
 
-static OBfsRegister<obfusc::IcallPass> sRegIcall("icall");
+// static OBfsRegister<obfusc::IcallPass> sRegIcall("icall");
 
 namespace obfusc {
     IcallPass::IcallPass() {}
