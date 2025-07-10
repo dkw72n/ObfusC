@@ -113,10 +113,12 @@ namespace obfusc {
 			f = F;
 		}
 		llvm::IRBuilder<> IRB(I);
+		#if 0
 		if (rng() % 5 <= 1){
 			if (_fake_ret)
 				IRB.CreateCall(_fake_ret, {});
 		}
+		#endif
 		IRB.CreateCall(f, { I->getPointerOperand(), I->getValueOperand()});
 		// I->eraseFromParent();
 		_insts_to_remove.insert(I);
@@ -128,12 +130,22 @@ namespace obfusc {
 		auto FT = I->getFunctionType();
 		auto RT = FT->getReturnType();
 		if (FT->isVarArg()) return;
-		
+		auto CC = I->getCallingConv();
+		if (CC != llvm::CallingConv::C){
+			llvm::outs() << "skip callee (unsupported callconv): " << F->getName() << "\n";
+			return;
+		}
 		if (F) {
+			/*
+			if (F->hasFnAttribute(llvm::Attribute::ReturnsTwice)){
+				llvm::outs() << "skip callee (return twice): " << F->getName() << "\n";
+				return;
+			}
+			*/
 			if (F->isIntrinsic()) return;
 			// if (I->isTailCall()) return;
 			if (F->getName().starts_with(".lsc_")) return;
-			if (F->doesNotReturn()) return;
+			// if (F->doesNotReturn()) return;
 		}
 		else {
 			// llvm::outs() << "[!] indirect call\n";
@@ -141,7 +153,7 @@ namespace obfusc {
 		}
 		if constexpr (TRACE_CALL){
 			llvm::outs() << "[-]: " << *I << "\n";
-			llvm::outs() << "  + " << *Callee->getType() << "\n";
+			llvm::outs() << "  + " << CC << "\n";
 			llvm::outs() << "  + " << *FT << "\n";
 		}
 		std::string name = ".lsc_call_";
