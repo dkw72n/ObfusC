@@ -1,13 +1,15 @@
 #pragma once
-
+#if USE_CLANG_ATTR
 #include <clang/Sema/ParsedAttr.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/SemaDiagnostic.h>
+#endif
 #include "FuncAttributeStore.hpp"
 #include "IObfuscationPass.hpp"
 
 
 namespace obfusc {
+#if USE_CLANG_ATTR
     template<typename passType, const char... obfName>
     class FuncAttribute : public clang::ParsedAttrInfo {
     public:
@@ -59,7 +61,7 @@ namespace obfusc {
             FuncAttributeStore::GetInstance().StoreAttributeInfo(nameStr, new passType());
         }
     };
-
+#endif
     constexpr char lower(char c){
         if (c >= 'A' && c <= 'Z') return c - 'A' + 'a';
         return c;
@@ -68,12 +70,16 @@ namespace obfusc {
     struct Lower {
         static constexpr char value[] = {lower(C)..., '\0'};
     };
+#if USE_CLANG_ATTR
     //name ## Pass class (e.g. MbaPass) needs to be included before using this macro.
     #define NEW_FUNC_ATTR(name, ...) \
         static_assert(std::is_convertible<name ## Pass*, IObfuscationPass*>::value, #name "Pass must inherit IObfuscationPass as public"); \
         class name ## Attribute : public FuncAttribute<name ## Pass, __VA_ARGS__> { }; \
         static clang::ParsedAttrInfoRegistry::Add<name ## Attribute> name ## Clang("obfusc_" #name, ""); \
         static OBfsRegister<obfusc::name ## Pass> sReg ## name(Lower<__VA_ARGS__>::value)
-
+#else
+    #define NEW_FUNC_ATTR(name, ...) \
+        static OBfsRegister<obfusc::name ## Pass> sReg ## name(Lower<__VA_ARGS__>::value)
+#endif
 
 }

@@ -69,7 +69,7 @@ namespace obfusc {
             if (is_excluded(mod, func)) continue;
             #if 1
 #define DEFAULT_PASSES {"estr","ucd","icall","ibr"}
-            for(auto passName: {"estr", "ucd", "icall", "lsc", "atd"}){
+            for(auto passName: {"estr","lsc","ibr"}){
                 auto pass = ObfsRegistar::GetInstance().passes[passName];
                 if (!pass){
                     llvm::errs() << "[!] WRONG PASS NAME: " << passName << "\n";

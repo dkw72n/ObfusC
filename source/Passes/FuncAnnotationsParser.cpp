@@ -1,9 +1,11 @@
 #include "FuncAnnotationsParser.hpp"
 #include "FuncAttributeStore.hpp"
 #include <llvm/IR/Module.h>
+#if USE_CLANG_ATTR
 #include <clang/Sema/ParsedAttr.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/SemaDiagnostic.h>
+#endif
 #include <vector>
 namespace obfusc {
     llvm::PreservedAnalyses FuncAnnotationsParser::run(llvm::Module& M, llvm::ModuleAnalysisManager&) {
@@ -37,7 +39,7 @@ namespace obfusc {
 
         return llvm::PreservedAnalyses::all();
     }
-
+#if USE_CLANG_ATTR
     class Obfs: public clang::ParsedAttrInfo{
         public:
         virtual bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr, const clang::Decl* D) const override {
@@ -85,7 +87,9 @@ namespace obfusc {
 
             // FuncAttributeStore::GetInstance().StoreAttributeInfo(nameStr, new passType());
         }
+
     };
 
     static clang::ParsedAttrInfoRegistry::Add<Obfs> obfsAttr("obfs", "");
+#endif
 }
