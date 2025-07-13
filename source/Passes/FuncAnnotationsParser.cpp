@@ -33,14 +33,23 @@ namespace obfusc {
                 if (nameWithOutZero != "obfusc"){
                     continue;
                 }
-                llvm::outs() << "[-] found obfusc @ " << annoFunc->getName() << "\n";
+                // llvm::outs() << "[-] found obfusc @ " << annoFunc->getName() << "|" << annoFunc << "\n";
                 auto args = annoDef->getOperand(AnnotationOperands::ARGS_OPERAND);
                 if (args){
                     auto argsDef = llvm::dyn_cast<llvm::ConstantStruct>(args->getOperand(0));
+                    std::string attrMerged = "-obfusc=";
+                    int idx = 0;
                     for (auto& arg: argsDef->operands()){
                         auto cda = llvm::dyn_cast<llvm::ConstantDataVector>(arg.get());
-                        llvm::outs() << "   + arg: " << cda->getAsString() << "\n";
+                        if (idx++){
+                            attrMerged += ",";
+                        }
+                        attrMerged += cda->getAsString();
+                        // llvm::outs() << "   + arg: " << cda->getAsString() << "\n";
+                        
                     }
+                    // llvm::outs() << "[-] attrMerged: " << attrMerged << "\n";
+                    annoFunc->addFnAttr(attrMerged);
                 }
             }
         }

@@ -22,10 +22,11 @@ namespace obfusc {
         std::vector<IObfuscationPass*> vec;
         auto p = attr.c_str();
         auto l = attr.size();
-        if (p[0] == '"'){
-            p++;
-            l-=2;
+        l-= 1;
+        while (*p++ != '='){
+            l--;
         }
+        if(p[l-1] == '"') l--;
         for (const auto word : std::views::split(std::string_view(p, l), delim)){
             auto s = word.size();
             // 删除串尾 null
@@ -37,7 +38,7 @@ namespace obfusc {
             auto pass = ObfsRegistar::GetInstance().passes[pass_name.str()];
             // llvm::outs() << llvm::StringRef(word.data(), word.size()) << ": " << pass << "\n";
             if (!pass){
-                // llvm::outs() << "[OBFS]" << llvm::StringRef(word.data(), s) << " NOT FOUND " << "\n";
+                llvm::errs() << "[OBFS]" << llvm::StringRef(word.data(), s) << " NOT FOUND " << "\n";
                 return {};
             }
             vec.emplace_back(pass);
@@ -51,8 +52,8 @@ namespace obfusc {
             for (auto& attrs : func.getAttributes()) { //Get each attribute lists attached to function
                 for (auto& attr : attrs) { //Get attributes one by one
                     std::vector<IObfuscationPass*> vec;
-                    if (attr.isStringAttribute()) { //If attribute is a string
-                        // llvm::outs() << "[~] attr: " << attr.getAsString() << "\n";
+                    if (attr.isStringAttribute() && attr.getAsString().starts_with("\"-obfusc=")) { //If attribute is a string
+                        llvm::outs() << "[~] attr: " << attr.getAsString() << " @ " << &func << "\n";
                         auto res = get_passes_from_attr(attr.getAsString());
                         if (res){
                             is_marked = true;
