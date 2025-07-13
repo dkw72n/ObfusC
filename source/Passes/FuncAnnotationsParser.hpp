@@ -13,7 +13,9 @@ private:
     enum AnnotationOperands {
         FUNCTION_OPERAND = 0,
         ANNOTATE_OPERAND = 1,
-        FILENAME_OPERAND = 2
+        FILENAME_OPERAND = 2,
+        LINENO_OPERAND = 3,
+        ARGS_OPERAND = 4
     };
 };
 }

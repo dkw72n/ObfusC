@@ -9,30 +9,38 @@
 #include <vector>
 namespace obfusc {
     llvm::PreservedAnalyses FuncAnnotationsParser::run(llvm::Module& M, llvm::ModuleAnalysisManager&) {
-        llvm::GlobalVariable* globalAttrs = M.getGlobalVariable("llvm.global.annotations"); //Get llvm.global.annotations from IR data
-        if (!globalAttrs) {
+        llvm::GlobalVariable* annotations = M.getGlobalVariable("llvm.global.annotations"); //Get llvm.global.annotations from IR data
+        if (!annotations) {
             return llvm::PreservedAnalyses::all();
         }
         
-        llvm::ConstantArray* array = llvm::cast<llvm::ConstantArray>(globalAttrs->getOperand(0)); //Get array of operands    
-        for (llvm::Value* operand : array->operands()) { //Get each operand
-            llvm::ConstantStruct* constant = llvm::dyn_cast<llvm::ConstantStruct>(operand); //Cast operand to a struct (i.e. the annotation struct)
-            if (!constant || constant->getNumOperands() < 2) { //Must be at least two operands (FUNCTION_OPERAND and ANNOTATE_OPERAND) 
+        llvm::ConstantArray* array = llvm::cast<llvm::ConstantArray>(annotations->getOperand(0)); //Get array of operands    
+        for (llvm::Value* annotation : array->operands()) { //Get each operand
+            // operand->dump();
+            llvm::ConstantStruct* annoDef = llvm::dyn_cast<llvm::ConstantStruct>(annotation); //Cast operand to a struct (i.e. the annotation struct)
+            if (!annoDef || annoDef->getNumOperands() < 2) { //Must be at least two operands (FUNCTION_OPERAND and ANNOTATE_OPERAND) 
                 continue;
             }
-            
-            llvm::Function* func = llvm::cast<llvm::Function>(constant->getOperand(AnnotationOperands::FUNCTION_OPERAND)); //Get function
-            llvm::GlobalVariable* globalStrPtr = llvm::cast<llvm::GlobalVariable>(constant->getOperand(AnnotationOperands::ANNOTATE_OPERAND));
-            if (!func || !globalStrPtr) {
+            llvm::Function* annoFunc = llvm::cast<llvm::Function>(annoDef->getOperand(AnnotationOperands::FUNCTION_OPERAND)); //Get function
+            llvm::GlobalVariable* annoName = llvm::cast<llvm::GlobalVariable>(annoDef->getOperand(AnnotationOperands::ANNOTATE_OPERAND));
+            if (!annoFunc || !annoName) {
                 continue;
             }
-            
-            if (llvm::ConstantDataArray* strArray = llvm::dyn_cast<llvm::ConstantDataArray>(globalStrPtr->getOperand(0))) { //Get Annotation str
-                llvm::StringRef str = strArray->getAsString();
-                llvm::outs() << "[-] FuncAnnotationsParser::run " << str << "\n";
-                if (FuncAttributeStore::GetInstance().IsAttrStored(str)) {
-                    // llvm::outs() << "[-] func->addFnAttr " << str << "\n";
-                    func->addFnAttr(str); //add Annotation to function
+            if (llvm::ConstantDataArray* annoNameBytes = llvm::dyn_cast<llvm::ConstantDataArray>(annoName->getOperand(0))) { //Get Annotation str
+                llvm::StringRef str = annoNameBytes->getAsString();
+                auto nameWithOutZero = std::string(str.str().c_str());
+                /// llvm::outs() << " annoNameBytes: " << str <<", " << (str == "obfusc") << "," << strcmp(str.str().c_str(), "obfusc") << "\n";
+                if (nameWithOutZero != "obfusc"){
+                    continue;
+                }
+                llvm::outs() << "[-] found obfusc @ " << annoFunc->getName() << "\n";
+                auto args = annoDef->getOperand(AnnotationOperands::ARGS_OPERAND);
+                if (args){
+                    auto argsDef = llvm::dyn_cast<llvm::ConstantStruct>(args->getOperand(0));
+                    for (auto& arg: argsDef->operands()){
+                        auto cda = llvm::dyn_cast<llvm::ConstantDataVector>(arg.get());
+                        llvm::outs() << "   + arg: " << cda->getAsString() << "\n";
+                    }
                 }
             }
         }
