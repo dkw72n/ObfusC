@@ -48,3 +48,5 @@ target_include_directories(ObfusC PRIVATE "source/LSC")
 target_include_directories(ObfusC PRIVATE "source/ATD")
 target_include_directories(ObfusC PRIVATE "source/Passes")
 add_subdirectory("source")
+
+add_library(ObfusCAttr SHARED attr.cpp)
