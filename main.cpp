@@ -17,6 +17,7 @@ namespace obfusc {
                     [](llvm::StringRef Name, llvm::ModulePassManager &MPM, llvm::ArrayRef<llvm::PassBuilder::PipelineElement>) {
                         auto pass = ObfsRegistar::GetInstance().passes[Name.str()];
                         if (pass){
+                            SetOptMode();
                             llvm::outs() << "[-] ADDING PASS: " << Name << "\n";
                             MPM.addPass(obfusc::ObfuscPassWrapper(pass));
                             return true;

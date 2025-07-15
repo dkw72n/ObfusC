@@ -46,6 +46,10 @@ namespace obfusc {
         return {vec};
     }
     llvm::PreservedAnalyses ObfuscationPassManager::run(llvm::Module& mod, llvm::ModuleAnalysisManager&) {
+        if (IsOptMode()){
+            llvm::outs() << "[-] OptMode, ObfuscationPassManager::run DISABLED\n";
+            return llvm::PreservedAnalyses::all();
+        }
         bool changed = false;
         for (auto& func : mod.getFunctionList()) { //Get all functions in module
             bool is_marked = false;
@@ -92,5 +96,14 @@ namespace obfusc {
             return llvm::PreservedAnalyses::none();
         }
         return llvm::PreservedAnalyses::all();
+    }
+
+    static std::atomic<int> OptPassCnt;
+    void SetOptMode(){
+        OptPassCnt++;
+    }
+
+    bool IsOptMode(){
+        return OptPassCnt.load() > 0;
     }
 }

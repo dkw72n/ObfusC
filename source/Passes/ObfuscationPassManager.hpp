@@ -3,6 +3,8 @@
 #include "IObfuscationPass.hpp"
 #include <map>
 namespace obfusc {
+    void SetOptMode();
+    bool IsOptMode();
     struct ObfuscationPassManager : llvm::PassInfoMixin<ObfuscationPassManager> {
         // Takes IR unit to run the pass on Module and the corresponding manager
         llvm::PreservedAnalyses run(llvm::Module& mod, llvm::ModuleAnalysisManager&);
@@ -14,9 +16,12 @@ namespace obfusc {
 
     struct ObfuscPassWrapper : llvm::PassInfoMixin<ObfuscationPassManager> {
 
-        ObfuscPassWrapper(IObfuscationPass* p): impl(p) {}
+        ObfuscPassWrapper(IObfuscationPass* p): impl(p) {
+            llvm::outs() << "ObfuscPassWrapper: " << p << "\n";
+        }
         // Takes IR unit to run the pass on Module and the corresponding manager
         inline llvm::PreservedAnalyses run(llvm::Module& mod, llvm::ModuleAnalysisManager&){
+            llvm::outs() <<"[RUN] ON " << mod.getName() << "\n";
             bool changed = false;
             impl->init();
             for(auto& f: mod){
