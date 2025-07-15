@@ -42,21 +42,21 @@ uint64_t fnv1a(llvm::StringRef s){
 static std::string make_flag_name(llvm::StringRef s){
     auto h = fnv1a(s);
     char name[64];
-    sprintf(name, "_fnv1a_%lx_ucd_inited", h);
+    sprintf(name, ".fnv1a_%lx_ucd_inited", h);
     return {name};
 }
 
 static std::string make_store_name(llvm::StringRef s){
     auto h = fnv1a(s);
     char name[64];
-    sprintf(name, "_fnv1a_%lx_ucd_store", h);
+    sprintf(name, ".fnv1a_%lx_ucd_store", h);
     return {name};
 }
 
 static std::string make_func_name(llvm::StringRef s){
     auto h = fnv1a(s);
     char name[64];
-    sprintf(name, "_fnv1a_%lx_ucd_func", h);
+    sprintf(name, ".fnv1a_%lx_ucd_func", h);
     return {name};
 }
 
@@ -323,7 +323,7 @@ namespace obfusc {
             g->removeDeadConstantUsers();
             if (g->use_empty()){
                 llvm::outs() << "[=] [ERASE] " << g->getName() << "\n";
-                // g->removeFromParent();
+                //g->removeFromParent();
                 g->setInitializer(llvm::Constant::getNullValue(g->getValueType()));
                 g->setConstant(false);
                 changed += true;
@@ -331,8 +331,8 @@ namespace obfusc {
         }
         for(auto f: funcs){
             if (f->use_empty()){
-                llvm::outs() << "[=] [ERASE] " << f->getName() << "\n";
-                f->removeFromParent();
+                llvm::outs() << "[=] FIXME [ERASE] " << f->getName() << "\n";
+                // f->removeFromParent();
                 changed += true;
             }
         }
