@@ -44,6 +44,7 @@ namespace obfusc {
 			I->eraseFromParent();
 			changed |= true;
 		}
+		_insts_to_remove.clear();
 		return changed;
 	}
     void LscPass::runOnLoad(llvm::Module& M, llvm::LoadInst* I)
