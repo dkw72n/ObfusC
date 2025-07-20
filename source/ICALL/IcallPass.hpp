@@ -76,7 +76,11 @@ namespace obfusc {
             return prefix + std::to_string(x);
         }
 
-
+        void clear(){
+            idx2func.clear();
+            func2idx.clear();
+            callsites.clear();
+        }
     };
 
     class IcallPass : public IObfuscationPass {
@@ -85,7 +89,7 @@ namespace obfusc {
         ~IcallPass() override;
 
         bool obfuscate(llvm::Module& mod, llvm::Function& func) override;
-
+        bool fini() override;
     private:
         void collectCallables(llvm::Module& mod);
         CalleeMap M;

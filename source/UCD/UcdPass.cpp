@@ -333,6 +333,7 @@ namespace obfusc {
             if (f->use_empty()){
                 llvm::outs() << "[=] FIXME [ERASE] " << f->getName() << "\n";
                 // f->removeFromParent();
+                f->eraseFromParent();
                 changed += true;
             }
         }

@@ -181,21 +181,23 @@ namespace obfusc {
                 Int32Ty
             );
             int32_t Shift = rng() % M.size();
+            auto TargetBase = llvm::ConstantExpr::getGetElementPtr(
+                Int8PtrTy,
+                dispatchTable,
+                llvm::ConstantInt::get(Int32Ty, Shift)
+            );
+            auto IOR = rng() % 3 ? IRB.CreateLoad(Int32Ty, TargetBase) : AOR;
             CI->setCalledOperand(IRB.CreateBitCast(
                 IRB.CreateLoad(
                     Int8PtrTy,
                     IRB.CreateIntToPtr(
                         IRB.CreateAdd(
                             IRB.CreatePtrToInt(
-                                llvm::ConstantExpr::getGetElementPtr(
-                                    Int8PtrTy,
-                                    dispatchTable,
-                                    llvm::ConstantInt::get(Int32Ty, Shift)
-                                ),
+                                TargetBase,
                                 IntPtrTy
                             ),
                             IRB.CreateSExt(
-                                MakeN(mod.getContext(), IRB, AOR, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8)),
+                                MakeN(mod.getContext(), IRB, IOR, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8)),
                                 IntPtrTy
                             )
                             // llvm::ConstantInt::get(IntPtrTy, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8))
@@ -207,5 +209,11 @@ namespace obfusc {
             ));
         }
         return true;
+    }
+    bool IcallPass::fini() {
+        M.clear();
+        touched = false;
+        dispatchTable = nullptr;
+        return false;
     }
 }
