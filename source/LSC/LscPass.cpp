@@ -133,6 +133,9 @@ namespace obfusc {
 			// llvm::outs() << "[!] indirect call\n";
 			Callee = I->getCalledOperand();
 		}
+		if (llvm::dyn_cast<llvm::InlineAsm>(Callee)){
+			return;
+		}
 		if constexpr (TRACE_CALL){
 			llvm::outs() << "[-]: " << *I << "\n";
 			llvm::outs() << "  + " << CC << "\n";

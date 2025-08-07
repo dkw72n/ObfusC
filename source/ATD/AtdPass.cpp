@@ -10,8 +10,10 @@ namespace obfusc {
         对抗反编译器 https://github.com/AppleReer/Anti-Disassembly-On-Arm64
         */
         auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), false);
-        llvm::outs() << "[-] target: " << mod.getContext().getDefaultTargetCPU() << "\n";
-        if (mod.getContext().getDefaultTargetCPU() == "x86-64"){
+        auto triple = mod.getTargetTriple();
+        llvm::outs() << "[-] target triple: " << triple << "\n";
+        // llvm::outs() << "[-] target: " << mod.getContext().getDefaultTargetCPU() << "\n";
+        if (triple.find("x86_64") != std::string::npos){
             _fake_ret = llvm::InlineAsm::get(VoidFT, R"asm(
                 lea 2(%rip), %rax
                 push %rax
