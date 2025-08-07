@@ -12,9 +12,9 @@ namespace obfusc {
 
         std::vector<llvm::Function*> idx2func;
         std::map<llvm::Function*, size_t> func2idx;
-        std::vector<llvm::CallInst*> callsites;
+        std::vector<llvm::CallBase*> callsites;
     public:
-        void insert(llvm::CallInst* CI){
+        void insert(llvm::CallBase* CI){
             callsites.emplace_back(CI);
             auto f = CI->getCalledFunction();
             

@@ -7,6 +7,7 @@
 #include <vector>
 #include <map>
 
+static constexpr bool TRACE_ICALL = false;
 
 // https://github.com/DreamSoule/ollvm17/blob/main/llvm-project/llvm/lib/Passes/Obfuscation/IndirectCall.cpp
 
@@ -129,6 +130,7 @@ llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Val
 
 // static OBfsRegister<obfusc::IcallPass> sRegIcall("icall");
 
+
 namespace obfusc {
     IcallPass::IcallPass() {}
     IcallPass::~IcallPass() {}
@@ -152,7 +154,22 @@ namespace obfusc {
                         }
 
                         M.insert(CI);
-                        // llvm::outs() << "  calling (" << Callee << ")" << Callee->getName() << "\n";
+                        if constexpr (TRACE_ICALL){
+                            llvm::outs() << "  calling (" << Callee << ")" << Callee->getName() << "\n";
+                        }
+                    }
+                    if (auto II = llvm::dyn_cast<llvm::InvokeInst>(&I)){
+                        auto Callee = II->getCalledFunction();
+                        if (!Callee) {
+                            continue;
+                        }
+                        if (Callee->isIntrinsic()){
+                            continue;
+                        }
+                        M.insert(II);
+                        if constexpr (TRACE_ICALL){
+                            llvm::outs() << "  invoking (" << Callee << ")" << Callee->getName() << "\n";
+                        }
                     }
                 }
             }

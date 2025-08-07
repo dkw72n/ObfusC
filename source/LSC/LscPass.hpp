@@ -13,7 +13,10 @@ namespace obfusc {
 
         void runOnLoad(llvm::Module& mod, llvm::LoadInst* I);
         void runOnStore(llvm::Module& mod, llvm::StoreInst* I);
-        void runOnCall(llvm::Module& mod, llvm::CallInst* I);
+        void runOnCall(llvm::Module& mod, llvm::CallBase* I);
+        void runOnInvoke(llvm::Module& mod, llvm::CallBase* I);
+
+        bool getNewFunctionAndArgs(llvm::Module& mod, llvm::CallBase* I, llvm::Function* &F, std::vector<llvm::Value*>& args);
         std::set<llvm::Instruction*> _insts_to_remove;
     };
 }

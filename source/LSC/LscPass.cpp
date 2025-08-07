@@ -31,6 +31,10 @@ namespace obfusc {
 					runOnCall(mod, dyn_cast<llvm::CallInst>(&I));
 					n++;
 					break;
+				case llvm::Instruction::Invoke:
+					runOnInvoke(mod, dyn_cast<llvm::InvokeInst>(&I));
+					n++;
+					break;
 				default:
 					break;
                 }
@@ -104,18 +108,18 @@ namespace obfusc {
 		_insts_to_remove.insert(I);
     }
 
-    void LscPass::runOnCall(llvm::Module& M, llvm::CallInst* I){
-        auto F = I->getCalledFunction();
+	bool LscPass::getNewFunctionAndArgs(llvm::Module& M, llvm::CallBase* I, llvm::Function* &NF, std::vector<llvm::Value*>& args){
+		auto F = I->getCalledFunction();
 		llvm::Value* Callee = F;
 		auto FT = I->getFunctionType();
 		auto RT = FT->getReturnType();
-		if (FT->isVarArg()) return;
+		if (FT->isVarArg()) return false;
 		auto CC = I->getCallingConv();
 		if (CC != llvm::CallingConv::C){
 			if (F){
 				llvm::outs() << "skip callee (unsupported callconv): " << F->getName() << "\n";
 			}
-			return;
+			return false;
 		}
 		if (F) {
 			/*
@@ -124,9 +128,9 @@ namespace obfusc {
 				return;
 			}
 			*/
-			if (F->isIntrinsic()) return;
+			if (F->isIntrinsic()) return false;
 			// if (I->isTailCall()) return;
-			if (F->getName().starts_with(".lsc_")) return;
+			if (F->getName().starts_with(".lsc_")) return false;
 			// if (F->doesNotReturn()) return;
 		}
 		else {
@@ -134,7 +138,7 @@ namespace obfusc {
 			Callee = I->getCalledOperand();
 		}
 		if (llvm::dyn_cast<llvm::InlineAsm>(Callee)){
-			return;
+			return false;
 		}
 		if constexpr (TRACE_CALL){
 			llvm::outs() << "[-]: " << *I << "\n";
@@ -144,6 +148,7 @@ namespace obfusc {
 		std::string name = ".lsc_call_";
 
 		name += make_ptr_string(RT);
+		name += "_";
 		for (auto& T : FT->params()) {
 			name += make_ptr_string(T);
 		}
@@ -182,10 +187,37 @@ namespace obfusc {
 		for (int i = 0; i < I->arg_size(); i++) {
 			argvs.push_back(I->getArgOperand(i));
 		}
-		auto CI = IRB.CreateCall(f, argvs);
-		// I->eraseFromParent();
-		if (I->isTailCall()) CI->setTailCall();
-		I->replaceAllUsesWith(CI);
-        _insts_to_remove.insert(I);
+		NF = f;
+		args = argvs;
+		return true;
+	}
+    void LscPass::runOnCall(llvm::Module& M, llvm::CallBase* I){
+		llvm::Function* f = nullptr;
+		std::vector<llvm::Value*> argvs;
+		if (getNewFunctionAndArgs(M, I, f, argvs)){
+			llvm::IRBuilder<> IRB(I);
+			auto CI = IRB.CreateCall(f, argvs);
+			// I->eraseFromParent();
+			if constexpr (TRACE_CALL){
+				llvm::outs() << "[=] " << *I << " \n -> \t " << *CI << "\n--------------\n";
+			}
+			if (I->isTailCall()) CI->setTailCall();
+			I->replaceAllUsesWith(CI);
+			_insts_to_remove.insert(I);
+		}
+    }
+
+	void LscPass::runOnInvoke(llvm::Module& M, llvm::CallBase* I){
+		llvm::Function* f = nullptr;
+		std::vector<llvm::Value*> argvs;
+		if (getNewFunctionAndArgs(M, I, f, argvs)){
+			llvm::IRBuilder<> IRB(I);
+			auto II = llvm::dyn_cast<llvm::InvokeInst>(I);
+			auto CI = IRB.CreateInvoke(f, II->getNormalDest(), II->getUnwindDest(), argvs);
+			// I->eraseFromParent();
+			// if (I->isTailCall()) CI->setTailCall();
+			I->replaceAllUsesWith(CI);
+			_insts_to_remove.insert(I);
+		}
     }
 }
