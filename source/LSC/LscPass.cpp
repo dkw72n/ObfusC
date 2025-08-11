@@ -8,6 +8,12 @@ static std::string make_ptr_string(void* ptr) {
 	return t;
 }
 
+static std::string make_ptr_string(void* ptr, int addrspace) {
+	char t[64];
+	sprintf(t, "%p.%d", ptr, addrspace);
+	return t;
+}
+
 namespace obfusc {
 	static constexpr bool TRACE_CALL = false;
     LscPass::LscPass() {}
@@ -59,7 +65,7 @@ namespace obfusc {
                 << I->getAlign().value() << ") "
                 << *I << "\n";
 #endif
-		std::string name = ".lsc_load_" + make_ptr_string(I->getAccessType());
+		std::string name = ".lsc_load_" + make_ptr_string(I->getAccessType(), I->getPointerAddressSpace());
 		auto f = M.getFunction(name);
 		if (!f) {
 			auto& Context = M.getContext();
@@ -88,7 +94,7 @@ namespace obfusc {
 #endif
 		auto PtrType = I->getPointerOperand()->getType();
 		auto ValType = I->getValueOperand()->getType();
-		std::string name = ".lsc_store_" + make_ptr_string(PtrType) + make_ptr_string(ValType);
+		std::string name = ".lsc_store_" + make_ptr_string(PtrType, I->getPointerAddressSpace()) + make_ptr_string(ValType);
 		auto f = M.getFunction(name);
 		if (!f) {
 			auto& Context = M.getContext();
