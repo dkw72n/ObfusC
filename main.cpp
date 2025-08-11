@@ -2,7 +2,6 @@
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/PassPlugin.h>
 #include <llvm/Support/raw_ostream.h>
-#include "common.hpp"
 #include "FuncAnnotationsParser.hpp"
 #include "ObfuscationPassManager.hpp"
 #include "IObfuscationPass.hpp"

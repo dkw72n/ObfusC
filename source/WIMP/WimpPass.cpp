@@ -61,18 +61,25 @@ namespace obfusc {
             func.getName() == "OpenProcess" ||
             func.getName() == "Sleep"
         ){
+            auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
+            auto Int64Ty = llvm::Type::getInt64Ty(mod.getContext());
             std::string strFunc = func.getName().str();
             auto& ctx = mod.getContext();
             llvm::Type* TyI64 = llvm::Type::getInt64Ty(mod.getContext());
             auto funcType = func.getFunctionType();
             auto funcTypeTo = funcType->getPointerTo();
-            auto modHash = llvm::ConstantInt::get(TyI64, djb2("kernel32.dll", true));
-            auto funcHash = llvm::ConstantInt::get(TyI64, djb2(strFunc.c_str()));
+            auto modHash = djb2("kernel32.dll", true);
+            auto funcHash = djb2(strFunc.c_str());
             for(auto* U: func.users()){
                 if (auto CI = llvm::dyn_cast<llvm::CallInst>(U)) {
                     llvm::IRBuilder<> IRB(CI);
-                    
-                    auto rawAddr = IRB.CreateCall(_wimp_lookup, {modHash, funcHash});
+                    auto AOR = IRB.CreatePtrToInt(
+                                IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
+                                Int64Ty
+                            );
+                    auto modHashV = MakeN64(mod.getContext(), IRB, AOR, modHash);
+                    auto funcHashV = MakeN64(mod.getContext(), IRB, AOR, funcHash);
+                    auto rawAddr = IRB.CreateCall(_wimp_lookup, {modHashV, funcHashV});
                     auto funcPtr = IRB.CreateBitCast(
                         rawAddr,       // 原始指针 (i8*)
                         funcTypeTo       // 目标类型 (void ()*)
@@ -81,8 +88,13 @@ namespace obfusc {
                     return true;
                 } else if (auto II = llvm::dyn_cast<llvm::InvokeInst>(U)) {
                     llvm::IRBuilder<> IRB(II);
-                    
-                    auto rawAddr = IRB.CreateCall(_wimp_lookup, {modHash, funcHash});
+                    auto AOR = IRB.CreatePtrToInt(
+                                IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
+                                Int64Ty
+                            );
+                    auto modHashV = MakeN64(mod.getContext(), IRB, AOR, modHash);
+                    auto funcHashV = MakeN64(mod.getContext(), IRB, AOR, funcHash);
+                    auto rawAddr = IRB.CreateCall(_wimp_lookup, {modHashV, funcHashV});
                     auto funcPtr = IRB.CreateBitCast(
                         rawAddr,       // 原始指针 (i8*)
                         funcTypeTo       // 目标类型 (void ()*)

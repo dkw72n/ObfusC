@@ -19,3 +19,8 @@
 #define STRINGIFY(x)        #x
 #define TOSTRING(x)         STRINGIFY(x)
 #define OBFUSC_VERSION_STR  "v" TOSTRING(OBFUSC_VERSION_MAJOR) "." TOSTRING(OBFUSC_VERSION_MINOR) "." TOSTRING(OBFUSC_VERSION_MICRO) "-" TOSTRING(OBFUSC_GIT_REV)
+
+// namespace obfusc {
+llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
+llvm::Value* MakeN64(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int64_t N);
+// }

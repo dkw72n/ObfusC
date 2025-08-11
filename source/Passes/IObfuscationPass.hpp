@@ -3,6 +3,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include "common.hpp"
 #include <random>
 #include <map>
 

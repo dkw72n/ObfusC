@@ -62,71 +62,7 @@ static llvm::GlobalVariable* make_function_list(llvm::Module& M, obfusc::CalleeM
 }
 
 
-llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
-    auto Int32Ty = llvm::Type::getInt32Ty(Context);
-    auto One = llvm::ConstantInt::get(Int32Ty, 1);
-    auto Two = llvm::ConstantInt::get(Int32Ty, 2);
-    auto Three = llvm::ConstantInt::get(Int32Ty, 3);
-    auto X = IRB.CreateURem(Value, Three);
-    auto Y = IRB.CreateAdd(X, One);
-    auto Z = IRB.CreateShl(One, X);
-    switch (rng() % 2){
-        case 0:
-            return IRB.CreateAnd(IRB.CreateOr(IRB.CreateLShr(Y, One), Y), One);
-        case 1:
-            return IRB.CreateURem(IRB.CreateMul(Z, Z), IRB.CreateAdd(Z, One));
-    }
-    return One;
-}
 
-llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
-    auto Int32Ty = llvm::Type::getInt32Ty(Context);
-    auto Three = llvm::ConstantInt::get(Int32Ty, 3);
-    auto One = llvm::ConstantInt::get(Int32Ty, 1);
-    auto X = IRB.CreateURem(Value, Three);
-    switch (rng() % 2){
-        case 0:
-            return IRB.CreateAnd(IRB.CreateLShr(X, One), X);
-        case 1:
-            return IRB.CreateNot(IRB.CreateNeg(MakeOne(Context, IRB, Value)));
-    }
-    // return IRB.CreateLShr(IRB.CreateURem(Value, llvm::ConstantInt::get(Int32Ty, 3)), llvm::ConstantInt::get(Int32Ty, 3));
-    return IRB.CreateXor(Value, Value);
-    // return IRB.CreateSub(IRB.CreateURem(IRB.CreateMul(X,X), IRB.CreateAdd(X, One)), One);
-}
-
-llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N){
-    auto Int32Ty = llvm::Type::getInt32Ty(Context);
-#if 1
-    if (N == 0) return MakeZero(Context, IRB, Value);
-    if (N == 1) return MakeOne(Context, IRB, Value); 
-    if (N < 0) return IRB.CreateNeg(
-        MakeN(Context, IRB, Value, -N)
-    );
-    if (N < 0x10){
-        switch(rng() % 3){
-            case 0:
-                return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N/2), MakeN(Context, IRB, Value, N - N/2));
-            case 1:
-                return IRB.CreateOr(llvm::ConstantInt::get(Int32Ty, N & 0x3), MakeN(Context, IRB, Value, N & 0xc));
-            default:
-                return IRB.CreateXor(llvm::ConstantInt::get(Int32Ty, N^6), MakeN(Context, IRB, Value, 6));
-        }
-    }
-    auto S = N % 2 ? MakeOne(Context, IRB, Value): MakeZero(Context, IRB, Value);
-    auto D = rng() % 11 + 2;
-    auto X = MakeN(Context, IRB, Value, N / D);
-    return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N%D), IRB.CreateMul(X, llvm::ConstantInt::get(Int32Ty, D)));
-
-    //auto Y = IRB.CreateAdd(X, X);
-    //if (N % 2){
-    //    return IRB.CreateAdd(Y, MakeOne(Context, IRB, Value));
-    //} 
-    //return Y;
-#else
-    return llvm::ConstantInt::get(Int32Ty, N);
-#endif
-}
 
 // static OBfsRegister<obfusc::IcallPass> sRegIcall("icall");
 

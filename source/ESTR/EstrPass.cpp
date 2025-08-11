@@ -9,7 +9,7 @@
 
 // static OBfsRegister<obfusc::EstrPass> sRegEstr("estr");
 
-llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
+// llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
 
 static bool isArgOfKnownCalls(llvm::CallInst* CI){
     return !!CI;
@@ -277,7 +277,7 @@ namespace obfusc {
                             auto V = cstrings[G];
                             auto SS = IRB.CreateAlloca(Int32Ty, llvm::ConstantInt::get(Int32Ty, V.size()));
                             for(size_t i = 0; i < V.size(); ++i){
-                                switch(rng() % 3){
+                                switch(rng() % 11){
                                     case 0:
                                         IRB.CreateStore(
                                             MakeN(Context, IRB, AOR, V[i]), 
@@ -292,8 +292,8 @@ namespace obfusc {
                                         break;
                                     default:
                                         IRB.CreateStore(
-                                            llvm::ConstantInt::get(Int32Ty, V[i]), 
-                                            IRB.CreateGEP(Int32Ty, SS, llvm::ConstantInt::get(Int32Ty, i))
+                                            MakeN(Context, IRB, AOR, V[i]), 
+                                            IRB.CreateGEP(Int32Ty, SS, MakeN(Context, IRB, AOR, i))
                                         );
                                         break;
                                 }

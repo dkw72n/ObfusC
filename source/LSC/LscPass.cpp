@@ -26,19 +26,19 @@ namespace obfusc {
             for (auto& I : BB) {
                 switch (I.getOpcode()) {
 				case llvm::Instruction::Load:
-					runOnLoad(mod, dyn_cast<llvm::LoadInst>(&I));
+					if (rng() % 2) runOnLoad(mod, dyn_cast<llvm::LoadInst>(&I));
                     n++;
 					break;
 				case llvm::Instruction::Store:
-					runOnStore(mod, dyn_cast<llvm::StoreInst>(&I));
+					if (rng() % 2) runOnStore(mod, dyn_cast<llvm::StoreInst>(&I));
 					n++;
 					break;
 				case llvm::Instruction::Call:
-					runOnCall(mod, dyn_cast<llvm::CallInst>(&I));
+					if (rng() % 2) runOnCall(mod, dyn_cast<llvm::CallInst>(&I));
 					n++;
 					break;
 				case llvm::Instruction::Invoke:
-					runOnInvoke(mod, dyn_cast<llvm::InvokeInst>(&I));
+					if (rng() % 2) runOnInvoke(mod, dyn_cast<llvm::InvokeInst>(&I));
 					n++;
 					break;
 				default:

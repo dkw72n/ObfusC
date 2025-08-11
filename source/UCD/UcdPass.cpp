@@ -5,7 +5,7 @@
 
 // static OBfsRegister<obfusc::UcdPass> sRegUcd("ucd");
 
-llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
+// llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
 
 static llvm::Value* make_n(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, int32_t N)
 {
