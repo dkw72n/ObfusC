@@ -1,11 +1,10 @@
 #include "IObfuscationPass.hpp"
 #include "common.hpp"
 
-llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
-    auto Int32Ty = llvm::Type::getInt32Ty(Context);
-    auto One = llvm::ConstantInt::get(Int32Ty, 1);
-    auto Two = llvm::ConstantInt::get(Int32Ty, 2);
-    auto Three = llvm::ConstantInt::get(Int32Ty, 3);
+llvm::Value* MakeOneT(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, llvm::IntegerType* T){
+   auto One = llvm::ConstantInt::get(T, 1);
+    auto Two = llvm::ConstantInt::get(T, 2);
+    auto Three = llvm::ConstantInt::get(T, 3);
     auto X = IRB.CreateURem(Value, Three);
     auto Y = IRB.CreateAdd(X, One);
     auto Z = IRB.CreateShl(One, X);
@@ -18,126 +17,96 @@ llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::V
     return One;
 }
 
-llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
-    auto Int32Ty = llvm::Type::getInt32Ty(Context);
-    auto Three = llvm::ConstantInt::get(Int32Ty, 3);
-    auto One = llvm::ConstantInt::get(Int32Ty, 1);
+llvm::Value* MakeZeroT(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, llvm::IntegerType* T){
+    auto Three = llvm::ConstantInt::get(T, 3);
+    auto One = llvm::ConstantInt::get(T, 1);
     auto X = IRB.CreateURem(Value, Three);
     switch (rng() % 2){
         case 0:
             return IRB.CreateAnd(IRB.CreateLShr(X, One), X);
         case 1:
-            return IRB.CreateNot(IRB.CreateNeg(MakeOne(Context, IRB, Value)));
+            return IRB.CreateNot(IRB.CreateNeg(MakeOneT(Context, IRB, Value, T)));
     }
     // return IRB.CreateLShr(IRB.CreateURem(Value, llvm::ConstantInt::get(Int32Ty, 3)), llvm::ConstantInt::get(Int32Ty, 3));
     return IRB.CreateXor(Value, Value);
     // return IRB.CreateSub(IRB.CreateURem(IRB.CreateMul(X,X), IRB.CreateAdd(X, One)), One);
 }
-
-llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N){
-    static int xxx = 0;
-    auto Int32Ty = llvm::Type::getInt32Ty(Context);
-#if 1
-    if (N == 0) return MakeZero(Context, IRB, Value);
-    if (N == 1) return MakeOne(Context, IRB, Value); 
-    if (N < 0) return IRB.CreateNeg(
-        MakeN(Context, IRB, Value, -N)
-    );
-    if (N < 0x10){
-        switch(rng() % 3){
-            case 0:
-                return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N/2), MakeN(Context, IRB, Value, N - N/2));
-            case 1:
-                return IRB.CreateOr(llvm::ConstantInt::get(Int32Ty, N & 0x3), MakeN(Context, IRB, Value, N & 0xc));
-            default:
-                return IRB.CreateXor(llvm::ConstantInt::get(Int32Ty, N^6), MakeN(Context, IRB, Value, 6));
-        }
+template<typename T>
+static llvm::IntegerType* GetIntT(llvm::LLVMContext& Context){
+    if constexpr (std::is_same_v<T, int32_t>()){
+        return llvm::Type::getInt32Ty(Context);
     }
-    // auto S = N % 2 ? MakeOne(Context, IRB, Value): MakeZero(Context, IRB, Value);
-    auto D = rng() % 125 + 2;
-    auto X = N / D; 
-    auto V = Value;
-    if (rng() % 2 == 0){
-        V = IRB.CreateAdd(Value, llvm::ConstantInt::get(Int32Ty, rng()));
+    if constexpr (std::is_same_v<T, int64_t>()){
+        return llvm::Type::getInt64Ty(Context);
     }
-    switch(rng()%4){
-        case 1:
-            return IRB.CreateAdd(MakeN(Context, IRB, V, N%D), IRB.CreateMul(llvm::ConstantInt::get(Int32Ty, X), llvm::ConstantInt::get(Int32Ty, D)));
-        case 2:
-            return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N%D), IRB.CreateMul(MakeN(Context, IRB, V, X), llvm::ConstantInt::get(Int32Ty, D)));
-        case 3:
-            return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N%D), IRB.CreateMul(llvm::ConstantInt::get(Int32Ty, X), MakeN(Context, IRB, V, D)));
-        default:
-            break;
-    }
-
-    return llvm::ConstantInt::get(Int32Ty, N);
-    // return IRB.CreateAdd(llvm::ConstantInt::get(Int32Ty, N%D), IRB.CreateMul(llvm::ConstantInt::get(Int32Ty, X), llvm::ConstantInt::get(Int32Ty, D)));
-
-    //auto Y = IRB.CreateAdd(X, X);
-    //if (N % 2){
-    //    return IRB.CreateAdd(Y, MakeOne(Context, IRB, Value));
-    //} 
-    //return Y;
-#else
-    return llvm::ConstantInt::get(Int32Ty, N);
-#endif
+    static_assert(false, "unknown type");
 }
 
-llvm::Value* MakeOne64(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
-    auto Int64Ty = llvm::Type::getInt64Ty(Context);
-    auto One = llvm::ConstantInt::get(Int64Ty, 1);
-    auto Two = llvm::ConstantInt::get(Int64Ty, 2);
-    auto Three = llvm::ConstantInt::get(Int64Ty, 3);
-    auto X = IRB.CreateURem(Value, Three);
-    auto Y = IRB.CreateAdd(X, One);
-    auto Z = IRB.CreateShl(One, X);
-    switch (rng() % 2){
-        case 0:
-            return IRB.CreateAnd(IRB.CreateOr(IRB.CreateLShr(Y, One), Y), One);
-        case 1:
-            return IRB.CreateURem(IRB.CreateMul(Z, Z), IRB.CreateAdd(Z, One));
-    }
-    return One;
-}
-
-llvm::Value* MakeZero64(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value){
-    auto Int64Ty = llvm::Type::getInt64Ty(Context);
-    auto Three = llvm::ConstantInt::get(Int64Ty, 3);
-    auto One = llvm::ConstantInt::get(Int64Ty, 1);
-    auto X = IRB.CreateURem(Value, Three);
-    switch (rng() % 2){
-        case 0:
-            return IRB.CreateAnd(IRB.CreateLShr(X, One), X);
-        case 1:
-            return IRB.CreateNot(IRB.CreateNeg(MakeOne(Context, IRB, Value)));
-    }
-    // return IRB.CreateLShr(IRB.CreateURem(Value, llvm::ConstantInt::get(Int32Ty, 3)), llvm::ConstantInt::get(Int32Ty, 3));
-    return IRB.CreateXor(Value, Value);
-    // return IRB.CreateSub(IRB.CreateURem(IRB.CreateMul(X,X), IRB.CreateAdd(X, One)), One);
-}
-
+#define PLAN_B 1
 llvm::Value* MakeN64(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int64_t N){
     static int xxx = 0;
-    auto Int64Ty = llvm::Type::getInt64Ty(Context);
-    auto One = llvm::ConstantInt::get(Int64Ty, 1);
-    if (N == 0) return MakeZero64(Context, IRB, Value);
-    if (N == 1) return MakeOne64(Context, IRB, Value); 
+    auto T = llvm::dyn_cast<llvm::IntegerType>(Value->getType());
+    auto One = llvm::ConstantInt::get(T, 1);
+    if (N == 0) return MakeZeroT(Context, IRB, Value, T);
+    if (N == 1) return MakeOneT(Context, IRB, Value, T); 
     if (N < 0) return IRB.CreateNeg(
         MakeN64(Context, IRB, Value, -N)
     );
+
+    // llvm::outs() << "MakeN " << N << "\n";
+    auto v = Value;
+    v = IRB.CreateAdd(v, llvm::ConstantInt::get(T, rng()));
+    auto scheme = rng() % 2;
+    if (scheme == 0){
+        int64_t Sq = floor(sqrt(N));
+        
+        auto d = Sq ? (rng() % Sq) / 10 : 0;
+        Sq -= d;
+        if (Sq > 1) {
+            auto SqV = MakeN64(Context, IRB, v, Sq);
+            return IRB.CreateAdd(IRB.CreateMul(SqV, SqV), llvm::ConstantInt::get(T, N-Sq*Sq));
+        }
+        else if (Sq == 1){
+            return IRB.CreateAdd(MakeOneT(Context, IRB, v, T), llvm::ConstantInt::get(T, N-1));
+        }
+        else {
+            abort();
+        }
+    } else {
+        int64_t bits = 0;
+        auto n = N;
+        while(n){
+            bits++;
+            n >>= 1;
+        }
+        auto sh = bits/2;
+        auto q1 = N >> sh;
+        auto q2 = N & (((int64_t)1 << sh) - 1);
+        
+        switch(rng() % 3){
+        case 0:
+            return IRB.CreateAdd(IRB.CreateShl(MakeN64(Context, IRB, v, q1), llvm::ConstantInt::get(T, sh)), llvm::ConstantInt::get(T, q2));
+        case 1:
+            return IRB.CreateAdd(IRB.CreateShl(llvm::ConstantInt::get(T, q1), MakeN64(Context, IRB, v, sh)), llvm::ConstantInt::get(T, q2));
+        default:
+            return IRB.CreateAdd(llvm::ConstantInt::get(T, q1 << sh), MakeN64(Context, IRB, v, q2));
+        }
+    }
+
+/*
     auto q = N;
     auto r = N % 2;
-    auto v = Value;
+    
     if (r){
         return IRB.CreateAdd(MakeOne64(Context, IRB, v), MakeN64(Context, IRB, v, N - 1));
     }
     int64_t n = 0;
     while(q % 2 == 0) { n++; q /= 2;}
     if (n < N){
-        if (xxx++ == 0) v = IRB.CreateAdd(Value, llvm::ConstantInt::get(Int64Ty, rng()));
+        // if (xxx++ == 0) v = IRB.CreateAdd(Value, llvm::ConstantInt::get(Int64Ty, rng()));
         return IRB.CreateLShr(MakeN64(Context, IRB, v, q), MakeN64(Context, IRB, v, n));
     } else {
         return IRB.CreateLShr(MakeN64(Context, IRB, v, q), llvm::ConstantInt::get(Int64Ty, n));
     }
+*/
 }

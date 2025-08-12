@@ -5,8 +5,6 @@
 
 // static OBfsRegister<obfusc::UcdPass> sRegUcd("ucd");
 
-// llvm::Value* MakeN(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, int32_t N);
-
 static llvm::Value* make_n(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, int32_t N)
 {
     auto Int32Ty = llvm::Type::getInt32Ty(Context); 
@@ -15,7 +13,7 @@ static llvm::Value* make_n(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, i
         IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
         Int32Ty
     );
-    return MakeN(Context, IRB, AOR, N);
+    return MakeN64(Context, IRB, AOR, N);
 }
 static std::string make_flag_name(llvm::Value* v){
     char name[64];

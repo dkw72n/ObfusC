@@ -150,7 +150,7 @@ namespace obfusc {
                                 IntPtrTy
                             ),
                             IRB.CreateSExt(
-                                MakeN(mod.getContext(), IRB, IOR, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8)),
+                                MakeN64(mod.getContext(), IRB, IOR, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8)),
                                 IntPtrTy
                             )
                             // llvm::ConstantInt::get(IntPtrTy, (-Shift + M.getIdx(CI->getCalledFunction())) * (IntPtrTy->getBitWidth() / 8))
