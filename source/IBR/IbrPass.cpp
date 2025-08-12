@@ -53,31 +53,51 @@ namespace obfusc {
 
         for (auto &BB : func) {
             auto *BI = dyn_cast<llvm::BranchInst>(BB.getTerminator());
-            if (BI && BI->isConditional()) {
-                
-                llvm::IRBuilder<> IRB(BI);
+            if (BI) {
+                if (BI->isConditional()){
+                    llvm::IRBuilder<> IRB(BI);
 
-                llvm::Value *Cond = BI->getCondition();
-                llvm::Value *Idx;
-                llvm::Value *TIdx, *FIdx;
+                    llvm::Value *Cond = BI->getCondition();
+                    llvm::Value *Idx;
+                    llvm::Value *TIdx, *FIdx;
 
-                TIdx = llvm::ConstantInt::get(intType, BBNumbering[BI->getSuccessor(0)]);
-                FIdx = llvm::ConstantInt::get(intType, BBNumbering[BI->getSuccessor(1)]);
-                Idx = IRB.CreateSelect(Cond, TIdx, FIdx);
+                    TIdx = llvm::ConstantInt::get(intType, BBNumbering[BI->getSuccessor(0)]);
+                    FIdx = llvm::ConstantInt::get(intType, BBNumbering[BI->getSuccessor(1)]);
+                    Idx = IRB.CreateSelect(Cond, TIdx, FIdx);
 
-                llvm::Value *GEP =
-                    IRB.CreateGEP(DestBBs->getValueType(), DestBBs, {Zero, Idx});
-                llvm::Value *EncDestAddr =
-                    IRB.CreateLoad(GEP->getType(), GEP, "EncDestAddr");
-                // -EncKey = X - FuncSecret
-                llvm::Value *DecKey = IRB.CreateAdd(EncKey, MySecret);
-                llvm::Value *DestAddr =
-                    IRB.CreateGEP(llvm::Type::getInt8Ty(Ctx), EncDestAddr, DecKey);
+                    llvm::Value *GEP =
+                        IRB.CreateGEP(DestBBs->getValueType(), DestBBs, {Zero, Idx});
+                    llvm::Value *EncDestAddr =
+                        IRB.CreateLoad(GEP->getType(), GEP, "EncDestAddr");
+                    // -EncKey = X - FuncSecret
+                    llvm::Value *DecKey = IRB.CreateAdd(EncKey, MySecret);
+                    llvm::Value *DestAddr =
+                        IRB.CreateGEP(llvm::Type::getInt8Ty(Ctx), EncDestAddr, DecKey);
 
-                auto IBI = llvm::IndirectBrInst::Create(DestAddr, 2);
-                IBI->addDestination(BI->getSuccessor(0));
-                IBI->addDestination(BI->getSuccessor(1));
-                llvm::ReplaceInstWithInst(BI, IBI);
+                    auto IBI = llvm::IndirectBrInst::Create(DestAddr, 2);
+                    IBI->addDestination(BI->getSuccessor(0));
+                    IBI->addDestination(BI->getSuccessor(1));
+                    llvm::ReplaceInstWithInst(BI, IBI);
+                } else {
+                    
+                    llvm::Value *TIdx;
+                    TIdx = llvm::ConstantInt::get(intType, BBNumbering[BI->getSuccessor(0)]);
+                    llvm::outs() << "[IBR] jmp to " << BI->getSuccessor(0) << ":" << BBNumbering[BI->getSuccessor(0)]<< "\n";
+                    #if 1
+                    llvm::IRBuilder<> IRB(BI);
+                    llvm::Value *GEP =
+                        IRB.CreateGEP(DestBBs->getValueType(), DestBBs, {Zero, TIdx});
+                    llvm::Value *EncDestAddr =
+                        IRB.CreateLoad(GEP->getType(), GEP, "EncDestAddr");
+                    llvm::Value *DecKey = IRB.CreateAdd(EncKey, MySecret);
+                    llvm::Value *DestAddr =
+                        IRB.CreateGEP(llvm::Type::getInt8Ty(Ctx), EncDestAddr, DecKey);
+                    auto IBI = llvm::IndirectBrInst::Create(DestAddr, 1);
+                    IBI->addDestination(BI->getSuccessor(0));
+                    llvm::ReplaceInstWithInst(BI, IBI);
+                    #endif
+                    
+                }
             }
         }
         return true;
@@ -112,16 +132,14 @@ namespace obfusc {
     void IbrPass::number_basic_blocks(llvm::Function& F){
         for (auto &BB : F) {
             if (auto *BI = dyn_cast<llvm::BranchInst>(BB.getTerminator())) {
-            if (BI->isConditional()) {
                 unsigned N = BI->getNumSuccessors();
                 for (unsigned I = 0; I < N; I++) {
-                auto Succ = BI->getSuccessor(I);
-                if (BBNumbering.count(Succ) == 0) {
-                    BBTargets.push_back(Succ);
-                    BBNumbering[Succ] = 0;
+                    auto Succ = BI->getSuccessor(I);
+                    if (BBNumbering.count(Succ) == 0) {
+                        BBTargets.push_back(Succ);
+                        BBNumbering[Succ] = 0;
+                    }
                 }
-                }
-            }
             }
         }
 
