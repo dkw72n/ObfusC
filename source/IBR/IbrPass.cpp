@@ -50,7 +50,7 @@ namespace obfusc {
 
         auto Zero = llvm::ConstantInt::get(intType, 0);
         auto DestBBs = get_indirect_targets(func, EncKey1);
-
+        int TotalAltered = 0;
         for (auto &BB : func) {
             auto *BI = dyn_cast<llvm::BranchInst>(BB.getTerminator());
             if (BI) {
@@ -78,12 +78,13 @@ namespace obfusc {
                     IBI->addDestination(BI->getSuccessor(0));
                     IBI->addDestination(BI->getSuccessor(1));
                     llvm::ReplaceInstWithInst(BI, IBI);
+                    TotalAltered++;
                 } else {
                     
                     llvm::Value *TIdx;
                     TIdx = llvm::ConstantInt::get(intType, BBNumbering[BI->getSuccessor(0)]);
-                    llvm::outs() << "[IBR] jmp to " << BI->getSuccessor(0) << ":" << BBNumbering[BI->getSuccessor(0)]<< "\n";
-                    #if 1
+                    // llvm::outs() << "[IBR] jmp to " << BI->getSuccessor(0) << ":" << BBNumbering[BI->getSuccessor(0)]<< "\n";
+                    
                     llvm::IRBuilder<> IRB(BI);
                     llvm::Value *GEP =
                         IRB.CreateGEP(DestBBs->getValueType(), DestBBs, {Zero, TIdx});
@@ -95,12 +96,11 @@ namespace obfusc {
                     auto IBI = llvm::IndirectBrInst::Create(DestAddr, 1);
                     IBI->addDestination(BI->getSuccessor(0));
                     llvm::ReplaceInstWithInst(BI, IBI);
-                    #endif
-                    
+                    TotalAltered++;
                 }
             }
         }
-        return true;
+        return TotalAltered > 0;
     }
 
     llvm::GlobalVariable * IbrPass::get_indirect_targets(llvm::Function &F, llvm::ConstantInt *EncKey) {

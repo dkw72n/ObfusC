@@ -32,6 +32,18 @@ static uint64_t djb2(const char* s, bool caseless = false, uint64_t cur = DJB2_I
     return hash;
 }
 
+static std::map<std::string, std::set<std::string>> dllmaps = {
+    {"kernel32.dll", {"CloseHandle", "OpenProcess", "Sleep", "GetLastError"}}
+};
+static bool checkKnownImport(std::string func, std::string& mod){
+    for(auto& p: dllmaps){
+        if (p.second.contains(func)){
+            mod = p.first;
+            return true;
+        }
+    }
+    return false;
+}
 // windows iat 加密
 namespace obfusc {
     WimpPass::WimpPass(): current(nullptr){
@@ -56,11 +68,8 @@ namespace obfusc {
             llvm::outs() << "\t" << *u << "\n";
         }
 
-        if (
-            func.getName() == "CloseHandle" ||
-            func.getName() == "OpenProcess" ||
-            func.getName() == "Sleep"
-        ){
+        std::string modName;
+        if (checkKnownImport(func.getName().str(), modName)){
             auto Int8PtrTy = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(mod.getContext()));
             auto Int64Ty = llvm::Type::getInt64Ty(mod.getContext());
             std::string strFunc = func.getName().str();
@@ -68,7 +77,7 @@ namespace obfusc {
             llvm::Type* TyI64 = llvm::Type::getInt64Ty(mod.getContext());
             auto funcType = func.getFunctionType();
             auto funcTypeTo = funcType->getPointerTo();
-            auto modHash = djb2("kernel32.dll", true);
+            auto modHash = djb2(modName.c_str(), true);
             auto funcHash = djb2(strFunc.c_str());
             for(auto* U: func.users()){
                 if (auto CI = llvm::dyn_cast<llvm::CallInst>(U)) {
