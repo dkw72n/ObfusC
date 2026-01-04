@@ -40,11 +40,15 @@ namespace obfusc {
             auto It = BB.getFirstNonPHIOrDbgOrLifetime();
             if (!It) continue;
             
+            if (It->getOpcode() != llvm::Instruction::Load){
+                continue;
+            }
             if (rng() % 15 <= 1){
                 llvm::IRBuilder<> IRB(It);
+                llvm::outs() << "[-] [ATD] Inserting: " << func.getName() << "@" << *It << "\n";
                 IRB.CreateCall(_fake_ret->getFunctionType(), _fake_ret);
                 changed |= true;
-                // llvm::outs() << "[-] FUN " << func.getName() << "\n";
+                
                 // break;
             }
             
