@@ -7,9 +7,8 @@
 //Heavily based on Obfuscator-LLVM
 //https://github.com/obfuscator-llvm/obfuscator/blob/llvm-4.0/lib/Transforms/Obfuscation/BogusControlFlow.cpp
 
-llvm::Value* MakeOne(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
-llvm::Value* MakeZero(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value);
-
+llvm::Value* MakeZeroT(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, llvm::IntegerType* T);
+llvm::Value* MakeOneT(llvm::LLVMContext& Context, llvm::IRBuilder<>& IRB, llvm::Value* Value, llvm::IntegerType* T);
 // static OBfsRegister<obfusc::BcfPass> sRegIcall("bcf");
 namespace obfusc {
     BcfPass::BcfPass() {}
@@ -66,7 +65,7 @@ namespace obfusc {
                 IRB.CreateIntrinsic(Int8PtrTy, llvm::Intrinsic::addressofreturnaddress, {}, {}),
                 Int32Ty
             );
-            auto Zero = MakeZero(mod.getContext(), IRB, AOR);
+            auto Zero = MakeZeroT(mod.getContext(), IRB, AOR, Int32Ty);
             //Load values from global vars
             llvm::LoadInst* opX = new llvm::LoadInst(int32Type, x, "", block);
             // llvm::LoadInst* opY = new llvm::LoadInst(int32Type, y, "", block);
@@ -85,7 +84,7 @@ namespace obfusc {
 
             llvm::IRBuilder<> IRB2(origBlock);
             
-            auto One = MakeOne(mod.getContext(), IRB2, AOR);
+            auto One = MakeOneT(mod.getContext(), IRB2, AOR, Int32Ty);
             
             auto cmpInstr2 = IRB2.CreateCmp(llvm::CmpInst::Predicate::ICMP_SLT, One, opX);
             //Make cmp instruction
