@@ -2,11 +2,14 @@
 #include <format>
 
 namespace atd::detail {
-
     template<typename T, std::size_t N>
     const T& select(const T (&Arr)[N]) {
         return Arr[rng() % N];
     }
+}
+namespace atd::detail::x64 {
+
+    
     void emit_rand_op(std::string& code){
         std::string inst = ".byte ";
         int ops[] = {0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f, 0xc3};
@@ -47,47 +50,46 @@ namespace atd::detail {
     std::string rand_byte_hex(){
         return std::format("{:#04x}", rng() & 0xff);
     }
-    llvm::InlineAsm* GenFakeRet(llvm::Module& mod){
+
+    llvm::InlineAsm* gen_nop_push_ret(llvm::Module& mod){
         auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), false);
-        auto triple = mod.getTargetTriple();
-        if (triple.find("x86_64") != std::string::npos){
-            auto dice = rng() % 4;
-            // dice = 3;
-            switch (dice){
-                case 0: {
-                    std::string code = R"asm(
-                            lea  0f(%rip), %rax
-                            push %rax
-                            ret
-                        )asm";
-                    auto length = rng() % 7 + 1;
-                    while(length){
-                        length--;
-                        emit_rand_code(code);
-                    }
-                    code += "0:\n";
-                    return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
-                }
-                case 1: {
-                    std::string code = R"asm(
-                            call 1f
-                    )asm"; 
-                    auto length = rng() % 7 + 1;
-                    while(length){
-                        length--;
-                        emit_rand_code(code);
-                    }
-                    code += std::format(".byte 0x{:02x}\n", 0x66 + (rng() & 1));
-                    code += R"asm(
-                    1:
-                            pop %rax
-                    )asm";
-                    return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
-                }
-                case 2: {
-                    auto length = rng() %  7 + 2;
-                    std::string code = std::format(".byte 0x66, 0x0f, 0x1f, 0x84, 0xeb, 0x{:02x}, 0xff, 0xff, 0xff, 0xeb, 0xf9\n", length + 5);
-                    /*
+        std::string code = R"asm(
+                lea  0f(%rip), %rax
+                push %rax
+                ret
+            )asm";
+        auto length = rng() % 7 + 1;
+        while(length){
+            length--;
+            emit_rand_code(code);
+        }
+        code += "0:\n";
+        return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
+    }
+
+    llvm::InlineAsm* gen_nop_call_pop(llvm::Module& mod){
+        auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), false);
+        std::string code = R"asm(
+                call 1f
+        )asm"; 
+        auto length = rng() % 7 + 1;
+        while(length){
+            length--;
+            emit_rand_code(code);
+        }
+        code += std::format(".byte 0x{:02x}\n", 0x66 + (rng() & 1));
+        code += R"asm(
+        1:
+                pop %rax
+        )asm";
+        return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
+    }
+
+    llvm::InlineAsm* gen_nop_jmp_overlap(llvm::Module& mod){
+        auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), false);
+        auto length = rng() %  7 + 2;
+            std::string code = std::format(".byte 0x66, 0x0f, 0x1f, 0x84, 0xeb, 0x{:02x}, 0xff, 0xff, 0xff, 0xeb, 0xf9\n", length + 5);
+            /*
 0:  66 0f 1f 84 eb 05 ff    nop    WORD PTR [rbx+rbp*8-0xfb]
 7:  ff ff
 9:  eb f9                   jmp    0x4
@@ -99,41 +101,56 @@ namespace atd::detail {
 3:  ff                      (bad)
 4:  ff                      (bad)
 5:  eb f9                   jmp    0x0
-                    */
-                    while(length--){
-                        code += std::format(".byte 0x{:02x}\n", rng() & 0x7f);
-                        // emit_rand_op(code);
-                    }
-                    return llvm::InlineAsm::get(VoidFT, code, "", true /*hasSideEffects*/, false);
-                }
-                case 3:{
-                    int bytes[] = {
-                        0x89, 0x94, 0x24, 0x88, 0x01, 0x00, 0x00,
-                        0x48, 0x8D, 0x84, 0x24, 0x08, 0x02, 0x00, 0x00,
-                        0x89, 0xC1,
-                        0x48, 0xC1, 0xE8, 0x00
-                    };
-                    auto disp1 = rng() % 37;
-                    auto disp2 = rng() % 37;
-                    std::string code = std::format(R"asm(
-                        leaq -0x{:x}(%rip), %rax
-                        pushq %rax
-                        addq $$0x{:x}, (%rsp)
-                        ret
-                    )asm", disp1 + 7, disp1 + 14 + disp2); // assert(disp1 + 14 + disp2 <= 0x7f)
-                    while(disp2--){
-                        code += std::format(".byte {:#04x}\n", select(bytes));
-                    }
-                    return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
-                }
+            */
+            while(length--){
+                code += std::format(".byte 0x{:02x}\n", rng() & 0x7f);
+                // emit_rand_op(code);
             }
+            return llvm::InlineAsm::get(VoidFT, code, "", true /*hasSideEffects*/, false);
+    }
+
+    llvm::InlineAsm* gen_nop_lea_push_ret(llvm::Module& mod){
+        auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), false);
+        int bytes[] = {
+            0x89, 0x94, 0x24, 0x88, 0x01, 0x00, 0x00,
+            0x48, 0x8D, 0x84, 0x24, 0x08, 0x02, 0x00, 0x00,
+            0x89, 0xC1,
+            0x48, 0xC1, 0xE8, 0x00
+        };
+        auto disp1 = rng() % 37;
+        auto disp2 = rng() % 37;
+        std::string code = std::format(R"asm(
+            leaq -0x{:x}(%rip), %rax
+            pushq %rax
+            addq $$0x{:x}, (%rsp)
+            ret
+        )asm", disp1 + 7, disp1 + 14 + disp2); // assert(disp1 + 14 + disp2 <= 0x7f)
+        while(disp2--){
+            code += std::format(".byte {:#04x}\n", select(bytes));
+        }
+        return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
+    }
+    
+}
+
+namespace atd::detail{
+    llvm::InlineAsm* GenFakeRet(llvm::Module& mod){
+        auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), false);
+        auto triple = mod.getTargetTriple();
+        if (triple.find("x86_64") != std::string::npos){
+            decltype(&x64::gen_nop_call_pop) generators[] = {
+                &x64::gen_nop_call_pop,
+                &x64::gen_nop_jmp_overlap,
+                &x64::gen_nop_lea_push_ret,
+                &x64::gen_nop_push_ret
+            };
+            return select(generators)(mod);
         }
         return llvm::InlineAsm::get(VoidFT, R"asm(
                     nop
         )asm", "", true /*hasSideEffects*/, false);
     }
 }
-
 namespace obfusc {
     
     
