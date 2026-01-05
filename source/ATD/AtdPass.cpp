@@ -12,7 +12,7 @@ namespace atd::detail::x64 {
     
     void emit_rand_op(std::string& code){
         std::string inst = ".byte ";
-        int ops[] = {0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f, 0xc3};
+        int ops[] = {0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f, 0xc3, 0xcc};
         inst += std::format("{:#04x}\n", select(ops));
         code += inst;
     }
@@ -131,6 +131,36 @@ namespace atd::detail::x64 {
         return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
     }
     
+    llvm::InlineAsm* gen_nop_double_jmp(llvm::Module& mod){
+        auto VoidFT = llvm::FunctionType::get(llvm::Type::getVoidTy(mod.getContext()), false);
+        std::string formats[] = {
+            ".byte 0x77, 0x{:02x}, 0x76, 0x{:02x}\n", // JA/JNA
+            ".byte 0x76, 0x{:02x}, 0x77, 0x{:02x}\n", // JA/JNA
+            ".byte 0x72, 0x{:02x}, 0x73, 0x{:02x}\n", // JAE/JNAE
+            ".byte 0x73, 0x{:02x}, 0x72, 0x{:02x}\n", // JAE/JNAE
+            ".byte 0x74, 0x{:02x}, 0x75, 0x{:02x}\n", // JZ/JNZ
+            ".byte 0x75, 0x{:02x}, 0x74, 0x{:02x}\n", // JZ/JNZ
+            ".byte 0x70, 0x{:02x}, 0x71, 0x{:02x}\n", // JO/JNO
+            ".byte 0x71, 0x{:02x}, 0x70, 0x{:02x}\n", // JO/JNO
+            ".byte 0x78, 0x{:02x}, 0x79, 0x{:02x}\n", // JS/JNS
+            ".byte 0x79, 0x{:02x}, 0x78, 0x{:02x}\n", // JS/JNS
+            ".byte 0x7a, 0x{:02x}, 0x7b, 0x{:02x}\n", // JP/JNP
+            ".byte 0x7b, 0x{:02x}, 0x7a, 0x{:02x}\n", // JP/JNP
+            ".byte 0x7c, 0x{:02x}, 0x7d, 0x{:02x}\n", // JL/JNL
+            ".byte 0x7d, 0x{:02x}, 0x7c, 0x{:02x}\n", // JL/JNL
+            ".byte 0x7e, 0x{:02x}, 0x7f, 0x{:02x}\n", // JG/JNG
+            ".byte 0x7f, 0x{:02x}, 0x7e, 0x{:02x}\n", // JG/JNG
+        };
+        int ops[] = {0xe8, 0xe9};
+        auto garbage = rng() % 5;
+        auto disp1 = garbage + 3, disp2 = garbage + 1;
+        std::string code = std::vformat(select(formats), std::make_format_args(disp1, disp2));
+        while(garbage--){
+            emit_rand_op(code);
+        }
+        code += std::format(".byte 0x{:02x}\n", select(ops));
+        return llvm::InlineAsm::get(VoidFT, code, "", true /*hasSideEffects*/, false);
+    }
 }
 
 namespace atd::detail{
@@ -142,7 +172,8 @@ namespace atd::detail{
                 &x64::gen_nop_call_pop,
                 &x64::gen_nop_jmp_overlap,
                 &x64::gen_nop_lea_push_ret,
-                &x64::gen_nop_push_ret
+                &x64::gen_nop_push_ret,
+                &x64::gen_nop_double_jmp
             };
             return select(generators)(mod);
         }
