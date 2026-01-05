@@ -120,9 +120,8 @@ namespace atd::detail {
                         pushq %rax
                         addq $$0x{:x}, (%rsp)
                         ret
-                    )asm", disp1 + 7, disp1 + 15 + disp2); // assert(disp1 + 15 + disp2 <= 0x7f)
-                    while(disp2){
-                        disp2--;
+                    )asm", disp1 + 7, disp1 + 14 + disp2); // assert(disp1 + 14 + disp2 <= 0x7f)
+                    while(disp2--){
                         code += std::format(".byte {:#04x}\n", select(bytes));
                     }
                     return llvm::InlineAsm::get(VoidFT, code, "~{rax}", true /*hasSideEffects*/, false);
