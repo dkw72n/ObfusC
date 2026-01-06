@@ -1,5 +1,5 @@
 #include "LscPass.hpp"
-
+#include <format>
 // static OBfsRegister<obfusc::LscPass> sRegIcall("lsc");
 
 static std::string make_ptr_string(void* ptr) {
@@ -14,6 +14,74 @@ static std::string make_ptr_string(void* ptr, int addrspace) {
 	return t;
 }
 
+namespace lsc::detail {
+	std::optional<std::string> binop2inst(llvm::Instruction::BinaryOps op){
+		switch (op){
+			case llvm::Instruction::Xor:
+				return {"xorl"};
+			case llvm::Instruction::Add:
+				return {"addl"};
+			case llvm::Instruction::And:
+				return {"andl"};
+			default:
+				break;
+		}
+		return {};
+	}
+
+	using inline_asm_t = std::tuple<llvm::FunctionType*, std::string, std::string>;
+
+	std::optional<inline_asm_t> gen_inline_asm(llvm::BinaryOperator* I){
+		auto inst = binop2inst(I->getOpcode());
+		if (!inst){
+			// llvm::outs() << "[!] [BinOp] " << *I << " NOT SUPPORTED\n";
+			return {};
+		}
+		llvm::Type *OpTy = I->getOperand(0)->getType();
+		if (I->hasNoSignedWrap() || I->hasNoUnsignedWrap()){
+			return {};
+		}
+		
+		if (!OpTy->isIntegerTy(32)){
+			return {};
+		}
+		auto FuncTy = llvm::FunctionType::get(OpTy, {OpTy, OpTy}, false);
+		switch (rng() % 7){
+			case 0:
+				return {{
+					FuncTy,
+					std::format(R"asm(
+						.byte 0x48, 0x8d, 0x05
+						0:  
+							jmp 1f
+						.byte 0x00, 0x00
+							jmp 2f
+						.byte 0x48, 0x8d, 0x05
+						1:
+							{} $1, $0
+							jmp 3f
+						2:
+							jmp 0b
+						3:
+					)asm", *inst), "=r,r,0,~{rax}"
+				}};
+			case 1:
+				return {{
+					FuncTy,
+					std::format(R"asm(
+							jz 1f
+							jnz 1f
+						.byte 0x48, 0x81, 0xec
+						1:
+							{} $1, $0
+					)asm", *inst), "=r,r,0"
+				}};
+			default:
+				break;
+		}
+		return {};
+	}
+}
 namespace obfusc {
 	static constexpr bool TRACE_CALL = false;
     LscPass::LscPass() {}
@@ -26,22 +94,28 @@ namespace obfusc {
             for (auto& I : BB) {
                 switch (I.getOpcode()) {
 				case llvm::Instruction::Load:
-					if (rng() % 2) runOnLoad(mod, dyn_cast<llvm::LoadInst>(&I));
+					if (rng() % 10 < 1) runOnLoad(mod, dyn_cast<llvm::LoadInst>(&I));
                     n++;
 					break;
 				case llvm::Instruction::Store:
-					if (rng() % 2) runOnStore(mod, dyn_cast<llvm::StoreInst>(&I));
+					if (rng() % 10 < 1) runOnStore(mod, dyn_cast<llvm::StoreInst>(&I));
 					n++;
 					break;
 				case llvm::Instruction::Call:
-					if (rng() % 2) runOnCall(mod, dyn_cast<llvm::CallInst>(&I));
+					if (rng() % 10 < 1) runOnCall(mod, dyn_cast<llvm::CallInst>(&I));
 					n++;
 					break;
 				case llvm::Instruction::Invoke:
-					if (rng() % 2) runOnInvoke(mod, dyn_cast<llvm::InvokeInst>(&I));
+					if (rng() % 10 < 1) runOnInvoke(mod, dyn_cast<llvm::InvokeInst>(&I));
 					n++;
 					break;
 				default:
+					{
+						if (auto BO = dyn_cast<llvm::BinaryOperator>(&I)){
+							runOnBinOp(mod, BO);
+							break;
+						}
+					}
 					break;
                 }
             }
@@ -86,7 +160,7 @@ namespace obfusc {
 		_insts_to_remove.insert(I);
     }
     void LscPass::runOnStore(llvm::Module& M, llvm::StoreInst* I){
-        #if 0
+#if 0
 		llvm::outs() << "[-]("
 			<< *I->getAccessType() << ","
 			<< I->getAlign().value() << ") "
@@ -226,4 +300,22 @@ namespace obfusc {
 			_insts_to_remove.insert(I);
 		}
     }
+
+	void LscPass::runOnBinOp(llvm::Module& mod, llvm::BinaryOperator* I){
+		
+		auto inline_asm = lsc::detail::gen_inline_asm(I);
+		if (!inline_asm){
+			return;
+		}
+		
+		llvm::IRBuilder<> IRB(I);
+		
+		auto [FuncTy, Code, Constraints] = *inline_asm;
+		llvm::Value *LHS = I->getOperand(0);
+    	llvm::Value *RHS = I->getOperand(1);
+		auto bo_inline_asm = llvm::InlineAsm::get(FuncTy, Code, Constraints, true, false);
+		auto CI = IRB.CreateCall(FuncTy, bo_inline_asm, {LHS, RHS});
+		I->replaceAllUsesWith(CI);
+		_insts_to_remove.insert(I);
+	}
 }
