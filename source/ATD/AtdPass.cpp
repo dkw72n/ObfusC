@@ -151,7 +151,7 @@ namespace atd::detail::x64 {
             ".byte 0x7e, 0x{:02x}, 0x7f, 0x{:02x}\n", // JG/JNG
             ".byte 0x7f, 0x{:02x}, 0x7e, 0x{:02x}\n", // JG/JNG
         };
-        int ops[] = {0xe8, 0xe9};
+        int ops[] = {0xe8, 0xe9, 0x85, 0xb9, 0x05, 0xba};
         auto garbage = rng() % 5;
         auto disp1 = garbage + 3, disp2 = garbage + 1;
         std::string code = std::vformat(select(formats), std::make_format_args(disp1, disp2));
